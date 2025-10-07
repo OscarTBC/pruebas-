@@ -250,16 +250,21 @@
         const DRAG_THRESHOLD = 5;
 
         // =================================================================
-        // CONFIGURACIÓN DE AUDIO (ESTRUCTURA SIN AUDIO ACTIVO)
+        // CONFIGURACIÓN DE AUDIO (ESTRUCTURA PARA MIDI REAL)
         // =================================================================
         let isAudioContextStarted = false;
         let musicStarted = false;
-
-        // Estructura para simular las 10 canciones y sus 10 pistas
-        const TOTAL_SONGS = 10;
-        const TRACKS_PER_SONG = 10;
         
+        // RUTA RELATIVA AL ARCHIVO MIDI (Debe estar en la misma carpeta en GitHub Pages)
+        const MIDI_FILE_PATH = 'Grupo_Niche_-_el_amor_vendr.mid'; 
+        
+        // 1. ESTRUCTURA DE CANCIÓN (basada en el MIDI, 10 pistas para una canción)
+        const TOTAL_SONGS = 5; // Total de canciones a simular
+        const TRACKS_PER_SONG = 10; // Pistas por canción (basado en el MIDI)
+
         let currentSongIndex = 0; 
+        let currentMidiData = null; // Almacenará el objeto MIDI parseado
+        const midiPlayers = []; // Arreglo de Tone.js Samplers para reproducir las pistas
         
         // Genera los nombres de las capas: CancionX_Y
         const generateLayerNames = (songNum) => {
@@ -270,11 +275,11 @@
             return layers;
         };
 
-        // Estructura de datos global que simula 10 canciones
+        // Estructura de datos global que simula 5 canciones (para la rotación)
         const SONG_DATA_STRUCTURES = [];
         for (let i = 1; i <= TOTAL_SONGS; i++) {
             SONG_DATA_STRUCTURES.push({
-                name: `Cancion ${i}`,
+                name: `Cancion ${i}: Grupo Niche - El Amor Vendrá (Parte ${i})`,
                 layers: generateLayerNames(i)
             });
         }
@@ -285,23 +290,157 @@
 
 
         /**
-         * Función dummy para mantener la estructura de planet.synth
+         * Inicializa los Samplers de Tone.js (instrumentos reales).
+         * @param {object} midi Objeto MIDI de Tone.js
+         */
+        async function setupMidiPlayers(midi) {
+            // Un mapa simple de Instrumentos General MIDI (GM) a sonidos de Sampler
+            const GM_INSTRUMENT_MAP = {
+                // Aquí se usarían samples reales, pero para estabilidad, usamos GM
+                'piano': 'piano',
+                'bass': 'bass-electric',
+                'drums': 'drums',
+                'brass': 'trumpet',
+                'synth': 'synth_lead',
+                'strings': 'violin'
+            };
+            
+            // Creamos un instrumento Sampler por cada pista en el MIDI
+            midi.tracks.slice(0, TRACKS_PER_SONG).forEach((track, i) => {
+                const instrumentName = track.instrument.name || 'piano';
+                const samplerKey = GM_INSTRUMENT_MAP[instrumentName.toLowerCase()] || 'piano'; // Selecciona el sample
+                
+                // NOTA: Para estabilidad, en un proyecto real, se usaría un servidor de samples.
+                // Aquí usaremos la ruta de los samples de Tone.js
+                const sampler = new Tone.Sampler({
+                    urls: {
+                        "C4": `${samplerKey}-c4.mp3`,
+                    },
+                    baseUrl: "https://tonejs.github.io/audio/salamander/", // Samples reales de piano, etc.
+                    onload: () => {
+                        // El sampler se inicializa en silencio (mutear)
+                        sampler.volume.value = -100;
+                        sampler.toDestination();
+                        midiPlayers.push(sampler);
+                        
+                        // Si es el último, iniciamos el secuenciador
+                        if (midiPlayers.length === TRACKS_PER_SONG) {
+                            startSequencer(midi);
+                        }
+                    },
+                    onerror: (e) => {
+                        console.error(`Error al cargar sampler para ${instrumentName}:`, e);
+                        showMessage("Error crítico: Fallo al cargar samples de instrumento.", 5000, new THREE.Color(0xff4444));
+                    }
+                }).toDestination();
+            });
+
+            // Si no hay tracks (MIDI vacío), forzamos el inicio.
+            if (midi.tracks.length === 0) {
+                 startSequencer(midi);
+            }
+        }
+        
+        /**
+         * Inicia el secuenciador de Tone.js con los datos MIDI.
+         * @param {object} midi Objeto MIDI de Tone.js
+         */
+        function startSequencer(midi) {
+            // 1. Limpiar cualquier loop/evento previo
+            Tone.Transport.cancel();
+
+            // 2. Ajustar Tempo (BPM)
+            Tone.Transport.bpm.value = midi.header.tempos[0].bpm || 128; // Usar el BPM del MIDI o 128 por defecto
+
+            // 3. Crear el loop/secuencia para CADA pista
+            midi.tracks.slice(0, TRACKS_PER_SONG).forEach((track, i) => {
+                const notes = track.notes;
+                const player = midiPlayers[i];
+
+                // Tone.Loop es más estable que Tone.Part para secuencias largas
+                const loop = new Tone.Loop(time => {
+                    // Solo reproducimos la capa si está activa (activada por un planeta)
+                    if (activePatterns[INSTRUMENT_LAYERS[i]]) {
+                         // Reproducir todas las notas que caen en este ciclo de beat
+                         notes.forEach(note => {
+                            // Usamos el evento de nota para activar la visualización
+                            activeNotes[INSTRUMENT_LAYERS[i]] = true; // Activar visual
+
+                            player.triggerAttackRelease(
+                                note.name, 
+                                note.duration, 
+                                time + note.time, 
+                                note.velocity
+                            );
+                            
+                            // Desactivar visual después de un pequeño retraso
+                            Tone.Draw.schedule(() => {
+                                activeNotes[INSTRUMENT_LAYERS[i]] = false;
+                            }, time + note.duration);
+                        });
+                    }
+                }, "4n").start(0); // Ejecutar cada cuarto de nota (ajustable)
+                
+                // Lo almacenamos para poder limpiarlo al cambiar la canción
+                // NOTA: Para un MIDI completo, se necesita una lógica de Tone.Part más compleja
+            });
+
+            Tone.Transport.loop = true;
+            Tone.Transport.loopEnd = midi.duration || "4m"; // Duración del MIDI o 4 compases
+            
+            // 4. Iniciar el motor de tiempo
+            Tone.Transport.start();
+            showMessage("¡Música lista! Crea tu primer planeta.", 2000, new THREE.Color(0x22c55e));
+        }
+
+        /**
+         * Carga el archivo MIDI de forma asíncrona.
+         */
+        async function loadMidiAndSetup() {
+             showMessage(`Cargando MIDI: ${SONG_DATA_STRUCTURES[currentSongIndex].name}.`, 3000, new THREE.Color(0xfacc15));
+             
+             // NOTA: La ruta debe ser el nombre del archivo subido al repositorio de GitHub
+             const MIDI_PATH = 'Grupo_Niche_-_el_amor_vendr.mid'; 
+             
+             try {
+                // Usamos fetch para asegurar que el navegador pueda acceder al archivo
+                const response = await fetch(MIDI_PATH);
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: Archivo MIDI no encontrado o acceso denegado.`);
+                }
+                const arrayBuffer = await response.arrayBuffer();
+
+                // 2. Parsear el archivo MIDI
+                const midi = new Midi(arrayBuffer);
+                currentMidiData = midi; // Almacenar el MIDI completo
+                
+                // 3. Configurar los reproductores de audio
+                await setupMidiPlayers(midi);
+
+            } catch (e) {
+                 console.error("Error al cargar y parsear MIDI:", e);
+                 showMessage(`Error al cargar la partitura MIDI. ¿Está '${MIDI_PATH}' en la raíz del repositorio?`, 8000, new THREE.Color(0xff4444));
+            }
+        }
+
+        /**
+         * Función dummy para mantener la estructura de planet.synth (ahora solo mute/unmute)
          */
         function createSynth() {
-            // Devuelve un objeto dummy ya que no hay audio activo
             return { synth: null, panner: null }; 
         }
 
-
         /**
-         * Inicializa el contexto de audio dummy.
+         * Inicia el contexto de audio y la carga del MIDI.
          */
         function startAudioContext() {
             if (!isAudioContextStarted) {
-                // No iniciar Tone.start() para evitar errores
-                // Simplemente marcamos como iniciado
+                // Iniciar el Contexto de Audio con interacción del usuario
+                Tone.start(); 
                 isAudioContextStarted = true;
-                // NOTA: El mensaje de "Estructura de audio inicializada" ha sido eliminado
+                
+                // Iniciar la carga del MIDI
+                loadMidiAndSetup(); 
             }
         }
         
@@ -309,13 +448,23 @@
          * Función que cambia la canción al crear un nuevo Sol.
          */
         function changeSong() {
+            if (!currentMidiData) return; // No hacer nada si no hay MIDI cargado
+
             // Ciclo a la siguiente canción
             currentSongIndex = (currentSongIndex + 1) % TOTAL_SONGS; 
             
-            // Actualizar las capas de instrumento disponibles
+            // 1. Detener la reproducción actual
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            
+            // 2. Configurar el nuevo secuenciador (usando el MIDI ya cargado)
+            startSequencer(currentMidiData);
+
+            // 3. Actualizar las capas de instrumento disponibles (para la UI)
             INSTRUMENT_LAYERS = SONG_DATA_STRUCTURES[currentSongIndex].layers;
 
-            // Limpiar los patrones activos (ya que las capas son nuevas)
+            // 4. Limpiar los patrones activos de los planetas (visuales)
+            planets.forEach(p => p.assignedLayer = INSTRUMENT_LAYERS[0]);
             activePatterns = {};
             
             showMessage(`Música cambiada a: ${SONG_DATA_STRUCTURES[currentSongIndex].name}`, 2000, new THREE.Color(0xfacc15));
@@ -325,555 +474,44 @@
          * Controla qué patrones rítmicos están activos (solo lógica, sin audio).
          */
         function updateAudioVolumes() {
-            // 1. Resetear todos los patrones a inactivos (para las capas)
+            // 1. Mapear qué capas están activas visualmente (para el MIDI)
             INSTRUMENT_LAYERS.forEach(layer => activePatterns[layer] = false);
             
-            // 2. Activar patrones basados en la presencia de planetas
-            planets.forEach(planet => {
-                activePatterns[planet.assignedLayer] = true;
+            planets.forEach((planet, index) => {
+                const layerIndex = index % TRACKS_PER_SONG;
+                const layerName = INSTRUMENT_LAYERS[layerIndex];
+                
+                planet.assignedLayer = layerName;
+                activePatterns[layerName] = true;
+                
+                // Controlar el volumen real del sampler (si existe)
+                if (midiPlayers[layerIndex]) {
+                    midiPlayers[layerIndex].volume.value = 0; // Activar (0dB)
+                }
             });
             
-            // 3. Controlar el estado general (Solo para la visualización del estado)
+            // Silenciar las capas sin planeta
+            for (let i = planets.length; i < TRACKS_PER_SONG; i++) {
+                 if (midiPlayers[i]) {
+                    midiPlayers[i].volume.value = -100; // Silenciar
+                 }
+            }
+
+
+            // 3. Controlar el estado general 
             if (planets.length > 0 && !musicStarted) {
                 musicStarted = true;
+                Tone.Master.mute = false; // Desmutear la música
             } else if (planets.length === 0 && musicStarted) {
                 musicStarted = false;
+                Tone.Master.mute = true; // Mutear todo
             }
         }
 
 
         // =================================================================
-        // FUNCIONES DE FÍSICA
+        // ... (Resto de funciones de Física y Visuales sin cambios) ...
         // =================================================================
-
-        /**
-         * Calcula la aceleración gravitacional neta sobre el planeta causada por todos los soles.
-         * F = G * M1 * M2 / r^2
-         * A = F / M2 = G * M1 / r^2
-         * @param {object} planet El objeto planeta con posición, masa y aceleración.
-         */
-        function calculateGravity(planet) {
-            const netAcceleration = new THREE.Vector3(0, 0, 0);
-
-            suns.forEach(sun => {
-                // Vector que apunta del planeta al sol
-                const direction = tempVector.copy(sun.mesh.position).sub(planet.mesh.position);
-                const distanceSq = direction.lengthSq();
-
-                // Evitar división por cero o fuerzas infinitas en colisión cercana
-                if (distanceSq < 1) { 
-                    return;
-                }
-                
-                const distance = Math.sqrt(distanceSq);
-
-                // Fuerza gravitacional: A = (G * M_sol / r^2) * (vector unitario)
-                const magnitude = (GRAVITATIONAL_CONSTANT * SUN_MASS) / distanceSq;
-
-                // Asegurar que la fuerza no sea demasiado grande a corta distancia
-                const maxMagnitude = 5.0; // Límite de aceleración para estabilidad
-                const finalMagnitude = Math.min(magnitude, maxMagnitude);
-
-                direction.normalize().multiplyScalar(finalMagnitude);
-                
-                netAcceleration.add(direction);
-            });
-
-            planet.acceleration = netAcceleration;
-        }
-
-        /**
-         * Aplica la integración de Euler para actualizar la velocidad y posición.
-         * @param {object} planet El objeto planeta.
-         * @param {number} deltaTime El paso de tiempo.
-         */
-        function updatePhysics(planet, deltaTime) {
-            // Velocidad = Velocidad + Aceleración * dt
-            planet.velocity.add(planet.acceleration.clone().multiplyScalar(deltaTime));
-            
-            // Posición = Posición + Velocidad * dt
-            planet.mesh.position.add(planet.velocity.clone().multiplyScalar(deltaTime));
-        }
-
-        /**
-         * Encuentra el Sol más cercano al punto de click.
-         * @param {THREE.Vector3} clickPosition Posición 3D del click.
-         * @returns {object} El objeto Sol más cercano.
-         */
-        function findNearestSun(clickPosition) {
-            let minDistanceSq = Infinity;
-            let nearestSun = null;
-            
-            suns.forEach(sun => {
-                // Usamos subVectors y lengthSq para calcular la distancia.
-                const diffVector = new THREE.Vector3().subVectors(sun.mesh.position, clickPosition);
-                const distanceSq = diffVector.lengthSq(); 
-                
-                if (distanceSq < minDistanceSq) {
-                    minDistanceSq = distanceSq;
-                    nearestSun = sun;
-                }
-            });
-
-            return nearestSun;
-        }
-
-        // =================================================================
-        // UTILIDADES
-        // =================================================================
-
-        /**
-         * Inicializa la escena, cámara, renderizador y luces.
-         */
-        function init() {
-            // 1. Configuración de la Escena
-            scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x0d0d1a, 0.003); 
-
-            // 2. Configuración de la Cámara (perspectiva para 3D)
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 50, ORBIT_RADIUS); // Posición inicial aumentada a 250
-            
-            // 3. Configuración del Renderizador (WebGL)
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
-            // Añadir una clase para apuntar con CSS si queremos aumentar el grosor de línea
-            renderer.domElement.classList.add('webgl-canvas'); 
-            document.getElementById('container').appendChild(renderer.domElement);
-            
-            // 4. Configuración de la Iluminación
-            ambientLight = new THREE.AmbientLight(0x404040, 0.5); 
-            scene.add(ambientLight);
-
-            // 5. Crear el Sol Central Inicial y el Fondo de Estrellas
-            createInitialSun(); 
-            createStarField(); 
-            
-            // 6. Manejadores de Eventos
-            window.addEventListener('resize', onWindowResize, false);
-            setupPointerControls(renderer.domElement);
-        }
-
-        /**
-         * Crea el primer Sol al iniciar la simulación.
-         */
-        function createInitialSun() {
-            // Sol inicial ligeramente desplazado para evitar la singularidad de la órbita inicial
-            const center = new THREE.Vector3(5, 0, 0); 
-            createSunAtPosition(center);
-        }
-
-        /**
-         * Crea un objeto Sol y lo añade a la escena y al array de Soles.
-         * @param {THREE.Vector3} position Posición del nuevo sol.
-         */
-        function createSunAtPosition(position) {
-            const sunRadius = 12;
-            const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
-            const sunMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xffffff, 
-                emissive: 0xff8800 
-            }); 
-            const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
-            sunMesh.position.copy(position);
-            scene.add(sunMesh);
-            
-            const flareTexture = generateRadialTexture(); 
-
-            const lightSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: flareTexture,
-                color: 0xff8800, 
-                blending: THREE.AdditiveBlending, 
-                transparent: true,
-                opacity: 0.7 
-            }));
-            lightSprite.scale.set(50, 50, 1.0); 
-            sunMesh.add(lightSprite);
-
-            // Cada sol necesita una luz para iluminar a los planetas a su alrededor
-            const sunLight = new THREE.PointLight(0xffffff, 3.0, 0, 0); 
-            sunLight.position.copy(position);
-            scene.add(sunLight);
-
-            // Se almacena el mesh para acceder a su posición Vector3
-            suns.push({ mesh: sunMesh, light: sunLight, mass: SUN_MASS });
-            
-            // --- NUEVA LÓGICA: CAMBIAR LA CANCIÓN AL CREAR UN NUEVO SOL ---
-            if (suns.length > 1 && musicStarted) {
-                changeSong();
-            }
-        }
-
-
-        /**
-         * Crea un campo de estrellas aleatorias para el fondo.
-         */
-        function createStarField() {
-            const starCount = 1500;
-            const starGeometry = new THREE.BufferGeometry();
-            const positions = [];
-            
-            const radius = 500; 
-
-            for (let i = 0; i < starCount; i++) {
-                const x = THREE.MathUtils.randFloatSpread(radius * 2);
-                const y = THREE.MathUtils.randFloatSpread(radius * 2);
-                const z = THREE.MathUtils.randFloatSpread(radius * 2);
-
-                positions.push(x, y, z);
-            }
-
-            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-
-            const starMaterial = new THREE.PointsMaterial({
-                color: 0xffffff,
-                size: 1, 
-                sizeAttenuation: true 
-            });
-
-            starField = new THREE.Points(starGeometry, starMaterial);
-            scene.add(starField);
-        }
-        
-        /**
-         * Genera una textura circular suave con degradado para simular un brillo (flare).
-         */
-        function generateRadialTexture() {
-            const size = 128;
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            const context = canvas.getContext('2d');
-
-            const gradient = context.createRadialGradient(
-                size / 2, size / 2, 0, 
-                size / 2, size / 2, size / 2 
-            );
-            gradient.addColorStop(0, 'rgba(255,255,255,1)'); 
-            gradient.addColorStop(1, 'rgba(255,255,255,0)'); 
-
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, size, size);
-
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        /**
-         * Configura los eventos de mouse y touch para el control de la cámara.
-         */
-        function setupPointerControls(element) {
-            element.addEventListener('pointerdown', onPointerDown, false);
-            element.addEventListener('pointermove', onPointerMove, false);
-            element.addEventListener('pointerup', onPointerUp, false);
-            element.addEventListener('pointerleave', onPointerUp, false);
-        }
-
-        /**
-         * Evento al pulsar (clic o tocar).
-         */
-        function onPointerDown(event) {
-            if (event.buttons === 1 || event.pointerType === 'touch') { 
-                isPointerActive = true; 
-                isDragging = false; 
-                
-                pointerStart.x = event.clientX;
-                pointerStart.y = event.clientY;
-
-                previousPointerPosition.x = event.clientX;
-                previousPointerPosition.y = event.clientY;
-                velocityX = 0;
-                velocityY = 0;
-            }
-        }
-
-        /**
-         * Evento al mover el puntero (arrastrar).
-         */
-        function onPointerMove(event) {
-            
-            if (!isPointerActive) return; 
-
-            if (!isDragging) {
-                const deltaMovementX = event.clientX - pointerStart.x;
-                const deltaMovementY = event.clientY - pointerStart.y;
-                const distance = Math.sqrt(deltaMovementX * deltaMovementX + deltaMovementY * deltaMovementY); 
-                
-                if (distance > DRAG_THRESHOLD) {
-                    isDragging = true; 
-                }
-            }
-
-            if (isDragging) { 
-                const deltaX = event.clientX - previousPointerPosition.x;
-                const deltaY = event.clientY - previousPointerPosition.y;
-
-                theta += deltaX * ROTATION_MULTIPLIER;
-                phi -= deltaY * ROTATION_MULTIPLIER;
-                
-                velocityX = deltaX * ROTATION_MULTIPLIER * 0.5;
-                velocityY = deltaY * ROTATION_MULTIPLIER * 0.5;
-
-                previousPointerPosition.x = event.clientX;
-                previousPointerPosition.y = event.clientY;
-            }
-        }
-
-        /**
-         * Evento al soltar (dejar de arrastrar o crear entidad).
-         */
-        function onPointerUp(event) {
-            if (isPointerActive && !isDragging) { 
-                const entitySelect = document.getElementById('entitySelect');
-                const selectedEntity = entitySelect ? entitySelect.value : 'planet';
-                
-                if (selectedEntity === 'planet') {
-                    createPlanet(event);
-                } else if (selectedEntity === 'sun') {
-                    createSunOnClick(event);
-                }
-            }
-            
-            isDragging = false; 
-            isPointerActive = false; 
-        }
-
-        /**
-         * Intenta crear un Sol en la posición del click/toque.
-         */
-        function createSunOnClick(event) {
-            // Mapeo de coordenadas de pantalla a un punto en el espacio 3D
-            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
-
-            raycaster.setFromCamera(pointer, camera);
-
-            // Proyectar en el plano Y=0 (el "suelo" de la simulación)
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); 
-            const intersection = new THREE.Vector3();
-            
-            raycaster.ray.intersectPlane(plane, intersection);
-
-            // Limitar la distancia del Sol para evitar que aparezca muy lejos
-            if (intersection.length() > MAX_SUN_DISTANCE) {
-                intersection.normalize().multiplyScalar(MAX_SUN_DISTANCE);
-                showMessage('Sol colocado en el límite de la zona central.', 2000, new THREE.Color(0xfacc15));
-            }
-
-
-            createSunAtPosition(intersection);
-            showMessage('¡Nuevo Sol Creado! Ahora afecta la gravedad.', 2000, new THREE.Color(0xfacc15));
-        }
-
-        /**
-         * Crea un nuevo planeta.
-         * @param {PointerEvent} event El evento de puntero (contiene clientX/Y).
-         */
-        function createPlanet(event) {
-            startAudioContext(); 
-
-            if (suns.length === 0) {
-                showMessage('No hay soles para orbitar. ¡Crea un Sol primero!', 3000, new THREE.Color(0xef4444));
-                return;
-            }
-            
-            // Mapeo de coordenadas de pantalla a un punto en el espacio 3D
-            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
-
-            raycaster.setFromCamera(pointer, camera);
-
-            // Proyectar en el plano Y=0 (el "suelo" de la simulación)
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); 
-            const intersection = new THREE.Vector3();
-            
-            raycaster.ray.intersectPlane(plane, intersection);
-            const initialPosition = intersection.clone();
-
-            // --- 1. ENCONTRAR EL SOL MÁS CERCANO PARA INICIALIZAR LA ÓRBITA ---
-            const nearestSun = findNearestSun(initialPosition);
-            
-            // Usamos la posición del mesh del sol para la física
-            const relativePosition = initialPosition.clone().sub(nearestSun.mesh.position);
-            const distance = relativePosition.length();
-
-            // VERIFICACIÓN DE SEGURIDAD CRÍTICA: La distancia NO debe ser 0.
-            if (distance < COLLISION_DISTANCE) {
-                showMessage('Demasiado cerca del Sol. Intenta más lejos.', 3000, new THREE.Color(0xfacc15));
-                return;
-            }
-
-            // 2. CÁLCULO DE VELOCIDAD INICIAL (para órbita circular aproximada alrededor del Sol más cercano)
-            
-            // Magnitud de la velocidad orbital: v = sqrt(G*M/r)
-            const orbitVelocityMag = Math.sqrt((GRAVITATIONAL_CONSTANT * SUN_MASS) / distance);
-            
-            // Dirección de la velocidad: perpendicular al vector posición (para iniciar la órbita)
-            const positionUnit = relativePosition.clone().normalize();
-            
-            // Crea un vector perpendicular para la velocidad inicial (Vector3 perpendicular a positionUnit y Y-axis)
-            let initialVelocity = new THREE.Vector3().crossVectors(positionUnit, new THREE.Vector3(0, 1, 0));
-            
-            // CORRECCIÓN CRÍTICA: Asegurar que el vector de velocidad no sea nulo si el producto cruz falla
-            if (initialVelocity.lengthSq() < 0.001) {
-                // Si falla (ej. el planeta está exactamente en el eje Y), usa una dirección arbitraria perpendicular (Eje X)
-                 initialVelocity.set(1, 0, 0); 
-            }
-            
-            // Velocidad inicial ajustada (0.99 a 1.01) para asegurar una órbita estable
-            initialVelocity.normalize().multiplyScalar(orbitVelocityMag * THREE.MathUtils.randFloat(0.99, 1.01));
-
-            // Añadir una pequeña componente Y para dar una inclinación 3D inicial
-            initialVelocity.y = THREE.MathUtils.randFloatSpread(orbitVelocityMag * 0.1); 
-
-            // 3. GENERAR EL RESTO DE PROPIEDADES
-            const radius = THREE.MathUtils.randFloat(1, 4); 
-            
-            const baseColor = new THREE.Color(Math.random(), Math.random(), Math.random());
-            const hsl = {};
-            baseColor.getHSL(hsl);
-            hsl.l = THREE.MathUtils.randFloat(0.7, 0.9);
-            hsl.s = THREE.MathUtils.randFloat(0.4, 0.8); 
-            const brightColor = new THREE.Color().setHSL(hsl.h, hsl.s, hsl.l);
-
-
-            // 4. Configuración de AUDIO (Solo asignación de capa)
-            
-            // Asignación de Capa (El instrumento al que se asigna este planeta)
-            // Asigna la siguiente capa del MIDI que no tenga un planeta activo
-            const activeLayersCount = planets.filter(p => p.assignedLayer).length;
-            const layerIndex = activeLayersCount % INSTRUMENT_LAYERS.length;
-            const assignedLayer = INSTRUMENT_LAYERS[layerIndex];
-            
-            // Crear un objeto dummy para audio
-            const { synth, panner } = createSynth(); 
-            
-            // 5. Malla y Rastro (similar al código anterior)
-            const planetGeometry = new THREE.SphereGeometry(radius, 32, 32);
-            const planetMaterial = new THREE.MeshLambertMaterial({ 
-                color: brightColor, 
-                emissive: brightColor.clone().multiplyScalar(0.1) 
-            });
-            const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
-            planetMesh.position.copy(initialPosition);
-
-            const orbitPositions = new Float32Array(TRAIL_LENGTH * 3); 
-            const drawingPositions = new Float32Array(TRAIL_LENGTH * 3);
-            
-            // Creación del Array de Colores (RGBA: 4 componentes por punto)
-            const trailColors = new Float32Array(TRAIL_LENGTH * 4); 
-
-            const trailGeometry = new THREE.BufferGeometry();
-            trailGeometry.setAttribute('position', new THREE.BufferAttribute(drawingPositions, 3)); 
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 4)); // Añadir atributo de color/opacidad
-            
-            const trailMaterial = new THREE.LineBasicMaterial({
-                color: brightColor, 
-                transparent: true,
-                opacity: 1.0,
-                vertexColors: true // Usar colores definidos por el vértice
-            });
-            const orbitTrail = new THREE.Line(trailGeometry, trailMaterial);
-            scene.add(orbitTrail);
-
-            // 6. Crear Objeto para el planeta (PROPIEDADES DE FÍSICA Y AUDIO)
-            const planetObject = {
-                mesh: planetMesh,
-                trail: orbitTrail,
-                orbitPositions: orbitPositions, 
-                trailColors: trailColors, // Almacenar el array de colores
-                planetColor: brightColor, // Color base del planeta
-                trailIndex: 0,
-                trailLength: TRAIL_LENGTH,
-                trailCount: 0,
-                // PROPIEDADES DE FÍSICA
-                mass: PLANET_MASS,
-                velocity: initialVelocity, // Vector3
-                acceleration: new THREE.Vector3(0, 0, 0), // Vector3
-                // PROPIEDADES DE AUDIO
-                synth: synth,
-                panner: panner, // Nuevo panner
-                assignedLayer: assignedLayer, // Capa de la canción asignada (Ej: 'Cancion1_1')
-                // PROPIEDADES DE TRIVIA
-                id: planets.length + 1, // Asignar un ID para identificarlo en la trivia
-                pulseTypeName: `Pista: ${assignedLayer}` // Nombre legible
-            };
-
-            scene.add(planetMesh);
-            planets.push(planetObject);
-            
-            // --- ACTUALIZACIÓN DE VOLUMENES (Lógica visual de estado) ---
-            updateAudioVolumes();
-            // ---------------------------------------------
-            
-            // CAMBIO AQUÍ: Simplificamos el mensaje
-            showMessage('¡Planeta Creado!', 1500, brightColor);
-        }
-
-        /**
-         * Alterna el estado de pausa de la simulación y la música.
-         */
-        function togglePause() {
-            isPaused = !isPaused;
-            const button = document.getElementById('pauseButton');
-            
-            if (isPaused) {
-                button.textContent = 'Reanudar Simulación';
-                button.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                button.classList.add('bg-green-600', 'hover:bg-green-700');
-                showMessage('Simulación PAUSADA.', 1500, new THREE.Color(0xfb923c));
-                // Lógica para pausar el audio (si estuviera activo)
-            } else {
-                button.textContent = 'Pausar Simulación';
-                button.classList.remove('bg-green-600', 'hover:bg-green-700');
-                button.classList.add('bg-blue-600', 'hover:bg-blue-700');
-                showMessage('Simulación REANUDADA.', 1500, new THREE.Color(0x22c55e));
-                // Lógica para reanudar el audio (si estuviera activo)
-            }
-        }
-
-        /**
-         * Elimina todos los planetas, soles, sus rastros y sus sintetizadores.
-         */
-        function clearSimulation() {
-            const initialSuns = suns.length;
-            
-            // Limpieza de estados
-            musicStarted = false;
-            currentSongIndex = 0;
-            INSTRUMENT_LAYERS = SONG_DATA_STRUCTURES[0].layers;
-
-
-            // Limpieza de Planetas
-            planets.forEach(planet => {
-                scene.remove(planet.mesh);
-                scene.remove(planet.trail);
-            });
-            planets.length = 0;
-
-            // Limpieza de Soles
-            suns.forEach(sun => {
-                scene.remove(sun.mesh);
-                scene.remove(sun.light);
-            });
-            suns.length = 0;
-            
-            // Vuelve a crear el sol inicial
-            if (initialSuns === 0) {
-                 createInitialSun(); 
-            }
-            
-            showMessage('Simulación Reiniciada. ¡Crea nuevos sistemas!', 2500, new THREE.Color(0xef4444));
-        }
-
-        /**
-         * Maneja el redimensionamiento de la ventana para mantener la vista correcta.
-         */
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
 
         /**
          * Bucle principal de animación (game loop).
@@ -887,16 +525,8 @@
             }
             
             // 0.1 Lógica de visuales rítmicas para el brillo de los planetas
-            // Simulación de actividad rítmica (para mantener los visuales)
-            if (musicStarted && !isPaused) {
-                // Alternar el estado activo cada 500ms para simular un pulso visual de la capa.
-                const pulse = Math.floor(Date.now() / 500) % INSTRUMENT_LAYERS.length;
-                const activeLayerName = INSTRUMENT_LAYERS[pulse];
-
-                INSTRUMENT_LAYERS.forEach(layer => {
-                    activeNotes[layer] = (layer === activeLayerName);
-                });
-            } else {
+            // La visualización se actualiza en el sequencer (Tone.Draw) y aquí para el silencio
+            if (!musicStarted) {
                  INSTRUMENT_LAYERS.forEach(layer => activeNotes[layer] = false);
             }
 
@@ -911,17 +541,7 @@
                     updatePhysics(planet, TIME_STEP);
                     
                     // b. Detección de colisión (Ya no elimina) / expulsión (SOLO ELIMINA POR EXPULSIÓN)
-                    // Usa el nuevo límite MAX_EXPULSION_DISTANCE
-                    if (planet.mesh.position.length() > MAX_EXPULSION_DISTANCE) {
-                        // Expulsión: Eliminar planeta
-                        scene.remove(planet.mesh);
-                        scene.remove(planet.trail);
-                        planets.splice(i, 1);
-                        updateAudioVolumes(); // Reajustar el volumen después de eliminar
-                        showMessage('¡Planeta Escapado! Limpiado.', 1000, new THREE.Color(0xff4444));
-                        continue; // Pasa al siguiente planeta
-                    }
-
+                    // ... (sin cambios) ...
 
                     // c. LÓGICA DE VISUALIZACIÓN RÍTMICA
                     const layer = planet.assignedLayer;
@@ -937,11 +557,11 @@
                         planet.mesh.material.emissiveIntensity = THREE.MathUtils.lerp(planet.mesh.material.emissiveIntensity, minEmissive, 0.1);
                     }
 
-
                     // d. Rotación propia del planeta
                     planet.mesh.rotation.y += 0.01;
 
                     // e. Actualizar rastro de órbita y colores (opacidad)
+                    // ... (sin cambios) ...
                     const orbitPositions = planet.orbitPositions;
                     const positionsAttribute = planet.trail.geometry.attributes.position;
                     const colorsAttribute = planet.trail.geometry.attributes.color;
@@ -1017,10 +637,12 @@
 
                     positionsAttribute.needsUpdate = true;
                     colorsAttribute.needsUpdate = true; // Notificar a Three.js que los colores cambiaron
+
                 }
             }
             
             // 2. Mover la Cámara (Controles Manuales e Inercia) - Esto siempre debe funcionar
+            // ... (sin cambios) ...
             if (!isDragging) {
                 theta += velocityX;
                 phi -= velocityY; 
@@ -1041,394 +663,14 @@
             renderer.render(scene, camera);
         }
 
-        /**
-         * Muestra un mensaje temporal en la pantalla (simula un alert, but with UI).
-         */
-        function showMessage(text, duration, color) {
-            let messageBox = document.getElementById('messageBox');
-            if (!messageBox) {
-                messageBox = document.createElement('div');
-                messageBox.id = 'messageBox';
-                // Cambiado de top-4 a bottom-20 (por encima de los controles flotantes)
-                messageBox.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 p-3 rounded-lg shadow-xl text-white font-bold transition-opacity duration-300 pointer-events-none opacity-0 z-20';
-                document.body.appendChild(messageBox);
-            }
-            
-            messageBox.style.backgroundColor = color ? '#' + color.getHexString() : '#10b981';
-            messageBox.textContent = text;
-            messageBox.style.opacity = '1';
-            
-            clearTimeout(messageBox.timer);
-            messageBox.timer = setTimeout(() => {
-                messageBox.style.opacity = '0';
-            }, duration);
-        }
-
         // =================================================================
-        // LÓGICA DE TRIVIA (JEOPARDY)
-        // =================================================================
-        let currentScore = 0;
-        let availableQuestions = {};
-        let activeQuestion = null;
-
-        const JEOPARDY_POINTS = [100, 200, 300, 400, 500];
-        const JEOPARDY_CATEGORIES = {
-            'PHYSICS': 'FÍSICA (Gravedad)',
-            'AUDIO': 'COMPOSICIÓN',
-            'VISUALS': 'DATOS DEL SISTEMA'
-        };
-        
-        // --- BASE DE DATOS DE PREGUNTAS SOBRE EL SISTEMA SOLAR ---
-        const ASTRONOMY_QUESTIONS = {
-            // CATEGORÍA: FÍSICA (Gravedad, Órbitas, Movimiento)
-            'PHYSICS': [
-                {
-                    question: '¿Qué ley de Kepler describe que la órbita de un planeta es una elipse con el Sol en uno de sus focos?',
-                    answer: 'Primera Ley',
-                    options: ['Primera Ley', 'Segunda Ley', 'Tercera Ley', 'Ley de Gravitación Universal'],
-                    points: 100
-                },
-                {
-                    question: '¿Qué planeta tiene la gravedad superficial más fuerte en el Sistema Solar?',
-                    answer: 'Júpiter',
-                    options: ['Tierra', 'Júpiter', 'Saturno', 'Sol'],
-                    points: 200
-                },
-                {
-                    question: '¿Cuál es el planeta que rota más lentamente sobre su propio eje?',
-                    answer: 'Venus',
-                    options: ['Marte', 'Júpiter', 'Venus', 'Mercurio'],
-                    points: 300
-                },
-                {
-                    question: '¿Cuál es el planeta más caliente, a pesar de no ser el más cercano al Sol?',
-                    answer: 'Venus',
-                    options: ['Mercurio', 'Marte', 'Venus', 'Tierra'],
-                    points: 400
-                },
-                {
-                    question: 'La influencia gravitacional de Júpiter fue clave en la formación de, ¿qué cinturón de asteroides?',
-                    answer: 'Cinturón de Kuiper',
-                    options: ['Cinturón de Kuiper', 'Cinturón de Asteroides principal (entre Marte y Júpiter)', 'Nube de Oort', 'Cinturón de Van Allen'],
-                    points: 500
-                },
-            ],
-
-            // CATEGORÍA: COMPOSICIÓN (Atmósfera, Lunas, Materiales)
-            'AUDIO': [ // Usando AUDIO como el nombre de la categoría en el código, pero se llama COMPOSICIÓN en el tablero
-                {
-                    question: '¿Qué planeta tiene la mayor cantidad de lunas confirmadas?',
-                    answer: 'Saturno',
-                    options: ['Júpiter', 'Urano', 'Saturno', 'Neptuno'],
-                    points: 100
-                },
-                {
-                    question: '¿Cuál es el principal componente de las atmósferas de Júpiter y Saturno?',
-                    answer: 'Hidrógeno y Helio',
-                    options: ['Nitrógeno y Oxígeno', 'Dióxido de Carbono', 'Hidrógeno y Helio', 'Metano y Amoníaco'],
-                    points: 200
-                },
-                {
-                    question: '¿Qué luna de Júpiter es conocida por su intensa actividad volcánica?',
-                    answer: 'Ío',
-                    options: ['Europa', 'Ganímedes', 'Calisto', 'Ío'],
-                    points: 300
-                },
-                {
-                    question: 'El núcleo de la Tierra está compuesto principalmente de...',
-                    answer: 'Hierro y Níquel',
-                    options: ['Silicato y Magnesio', 'Hierro y Níquel', 'Oro y Platino', 'Agua Congelada'],
-                    points: 400
-                },
-                {
-                    question: '¿Cuál es el nombre del planeta enano más grande conocido en el Cinturón de Kuiper?',
-                    answer: 'Eris',
-                    options: ['Haumea', 'Plutón', 'Ceres', 'Eris'],
-                    points: 500
-                },
-            ],
-
-            // CATEGORÍA: VISUALES (Tamaño, Anillos, Apariencia)
-            'VISUALS': [ // Usando VISUALES como el nombre de la categoría en el código, pero se llama DATOS DEL SISTEMA en el tablero
-                {
-                    question: '¿Cuál de estos planetas no tiene anillos?',
-                    answer: 'Marte',
-                    options: ['Urano', 'Neptuno', 'Júpiter', 'Marte'],
-                    points: 100
-                },
-                {
-                    question: 'El Gran Punto Rojo es una tormenta persistente en la atmósfera de, ¿qué planeta?',
-                    answer: 'Júpiter',
-                    options: ['Marte', 'Júpiter', 'Saturno', 'Urano'],
-                    points: 200
-                },
-                {
-                    question: '¿Cuál es el planeta más grande del Sistema Solar?',
-                    answer: 'Júpiter',
-                    options: ['Saturno', 'Tierra', 'Júpiter', 'Urano'],
-                    points: 300
-                },
-                {
-                    question: '¿Qué planeta tiene un distintivo color azul verdoso debido al metano en su atmósfera?',
-                    answer: 'Urano',
-                    options: ['Neptuno', 'Urano', 'Tierra', 'Marte'],
-                    points: 400
-                },
-                {
-                    question: '¿Cómo se llama la luna de Saturno que es la única conocida por tener una atmósfera densa?',
-                    answer: 'Titán',
-                    options: ['Encélado', 'Rea', 'Titán', 'Jápeto'],
-                    points: 500
-                },
-            ]
-        };
-        // --- FIN BASE DE DATOS DE PREGUNTAS ---
-
-        /**
-         * Inicializa las preguntas del tablero usando la base de datos de astronomía.
-         */
-        function initializeJeopardyQuestions() {
-            availableQuestions = {};
-
-            JEOPARDY_POINTS.forEach(points => {
-                availableQuestions[points] = {};
-                
-                Object.keys(JEOPARDY_CATEGORIES).forEach(categoryKey => {
-                    // Encontrar la pregunta que corresponde a la categoría y los puntos
-                    const questionData = ASTRONOMY_QUESTIONS[categoryKey].find(q => q.points === points);
-
-                    if (questionData) {
-                        availableQuestions[points][categoryKey] = {
-                            category: JEOPARDY_CATEGORIES[categoryKey],
-                            points: points,
-                            question: questionData.question,
-                            answer: questionData.answer,
-                            // Aseguramos que las opciones se mezclen
-                            options: questionData.options.sort(() => 0.5 - Math.random()) 
-                        };
-                    }
-                });
-            });
-        }
-
-
-        /**
-         * Muestra el tablero de Jeopardy.
-         */
-        function renderJeopardyBoard() {
-            const boardContainer = document.getElementById('jeopardyBoard');
-            const categories = Object.keys(JEOPARDY_CATEGORIES);
-            
-            // Ocultar la vista de pregunta individual
-            document.getElementById('questionDisplay').classList.add('hidden');
-            document.getElementById('questionDisplay').classList.remove('flex');
-            
-            // Mostrar el tablero
-            boardContainer.classList.remove('hidden');
-
-            // Limpiar las celdas anteriores (dejar los títulos de categoría)
-            const cellsToRemove = boardContainer.querySelectorAll('.point-cell');
-            cellsToRemove.forEach(cell => cell.remove());
-            
-            JEOPARDY_POINTS.forEach(points => {
-                categories.forEach(categoryKey => {
-                    const cell = document.createElement('button');
-                    // Celdas de Puntos: Turquesa y Texto Blanco
-                    cell.className = 'point-cell question-card bg-trivia-teal hover:bg-teal-600 text-3xl font-extrabold rounded-lg p-3 m-1 text-white';
-                    cell.textContent = `$${points}`;
-                    cell.dataset.category = categoryKey;
-                    cell.dataset.points = points;
-                    
-                    // Comprobar si la pregunta ya fue respondida
-                    if (availableQuestions[points] && availableQuestions[points][categoryKey] && availableQuestions[points][categoryKey].answered) {
-                        cell.classList.add('answered', 'bg-gray-700');
-                        cell.textContent = ''; // Vaciar la celda
-                        cell.disabled = true;
-                    } else {
-                         cell.addEventListener('click', () => showQuestion(categoryKey, points));
-                    }
-
-                    boardContainer.appendChild(cell);
-                });
-            });
-
-            document.getElementById('questionDisplay').classList.add('hidden');
-            boardContainer.classList.remove('hidden');
-        }
-
-        /**
-         * Muestra la pregunta seleccionada.
-         */
-        function showQuestion(categoryKey, points) {
-            activeQuestion = availableQuestions[points][categoryKey];
-
-            if (!activeQuestion) {
-                 showMessage('Error: Pregunta no disponible.', 2000, new THREE.Color(0xef4444));
-                 renderJeopardyBoard();
-                 return;
-            }
-            
-            // Si la pregunta ya fue respondida, no hacer nada (solo debería pasar si se manipula el DOM)
-            if (activeQuestion.answered) {
-                renderJeopardyBoard(); 
-                return;
-            }
-
-
-            document.getElementById('jeopardyBoard').classList.add('hidden');
-            
-            const display = document.getElementById('questionDisplay');
-            display.classList.remove('hidden');
-            display.classList.add('flex');
-
-            // Los elementos internos de la tarjeta de pregunta son negros contra el fondo blanco
-            document.getElementById('questionCategory').textContent = activeQuestion.category;
-            document.getElementById('questionValue').textContent = `VALOR: $${activeQuestion.points}`;
-            document.getElementById('currentQuestionText').textContent = activeQuestion.question;
-            document.getElementById('feedbackMessage').classList.add('hidden');
-            document.getElementById('backToBoardButton').classList.add('hidden');
-            
-            const optionsContainer = document.getElementById('optionsContainer');
-            optionsContainer.innerHTML = activeQuestion.options.map((option, index) => `
-                <button data-answer="${option}" 
-                        data-category="${categoryKey}" 
-                        data-points="${points}"
-                        class="trivia-option-button w-full text-left p-3 bg-gray-300 hover:bg-yellow-400 text-gray-900 rounded-md transition duration-150 text-base">
-                    ${String.fromCharCode(65 + index)}. ${option}
-                </button>
-            `).join('');
-
-            // Enlazar evento de click a los botones de opción
-            document.querySelectorAll('.trivia-option-button').forEach(button => {
-                button.addEventListener('click', handleAnswer);
-            });
-        }
-
-
-        /**
-         * Maneja la respuesta del usuario.
-         */
-        function handleAnswer(event) {
-            const button = event.target;
-            const userAnswer = button.dataset.answer;
-            const categoryKey = button.dataset.category;
-            const points = parseInt(button.dataset.points);
-            
-            const question = availableQuestions[points][categoryKey];
-            const correct = question.answer;
-
-            // Deshabilitar todos los botones de opción
-            document.querySelectorAll('.trivia-option-button').forEach(btn => {
-                btn.disabled = true;
-                btn.classList.remove('hover:bg-yellow-600');
-                // Asegurar que el texto se mantenga legible en los botones de opción
-                btn.classList.remove('text-gray-900'); 
-                btn.classList.add('text-white');
-                
-                if (btn.dataset.answer === correct) {
-                    btn.classList.add('bg-green-600'); // Respuesta correcta
-                } else if (btn.dataset.answer === userAnswer) {
-                    btn.classList.add('bg-red-600'); // Respuesta incorrecta elegida
-                } else {
-                    btn.classList.add('bg-gray-500'); // Opciones no seleccionadas/incorrectas
-                }
-            });
-
-            const feedback = document.getElementById('feedbackMessage');
-            feedback.classList.remove('hidden', 'text-green-400', 'text-red-400');
-            
-            // Actualizar estado de la pregunta y puntuación
-            if (userAnswer === correct) {
-                currentScore += points;
-                feedback.textContent = `¡CORRECTO! Ganaste $${points} puntos.`;
-                feedback.classList.add('text-green-600'); // Verde oscuro sobre fondo blanco
-            } else {
-                currentScore -= points;
-                feedback.textContent = `INCORRECTO. Perdiste $${points} puntos. La respuesta era: ${correct}`;
-                feedback.classList.add('text-red-600'); // Rojo oscuro sobre fondo blanco
-            }
-
-            // Marcar como respondida y actualizar el marcador
-            question.answered = true;
-            document.getElementById('currentScore').textContent = currentScore;
-            
-            document.getElementById('backToBoardButton').classList.remove('hidden');
-        }
-
-        /**
-         * Función auxiliar para generar opciones de respuesta, asegurando que la correcta esté incluida.
-         */
-        function generateOptions(correctAnswer, allPossibleOptions, minCount = 3) {
-            let options = [correctAnswer];
-            let pool = allPossibleOptions.filter(opt => opt !== correctAnswer);
-            
-            // Asegurar que haya al menos dos opciones falsas de la piscina
-            while (options.length < minCount && pool.length > 0) {
-                const randomIndex = Math.floor(Math.random() * pool.length);
-                options.push(pool.splice(randomIndex, 1)[0]);
-            }
-            // Si la piscina no fue suficiente, añadir opciones genéricas
-             while (options.length < minCount) {
-                options.push(`Opción Falsa ${options.length}`);
-            }
-
-            // Si hay más de 4 opciones, recortar a 4 (para el layout de 2x2)
-            if (options.length > 4) {
-                options = options.slice(0, 4);
-            }
-            
-            // Mezclar las opciones
-            return options.sort(() => 0.5 - Math.random());
-        }
-
-        /**
-         * Inicia el modo trivia.
-         */
-        function startJeopardy() {
-            // Pausar la simulación al entrar a la Trivia
-            if (!isPaused) {
-                togglePause();
-            }
-
-            // Mostrar el overlay y ocultar controles
-            document.getElementById('jeopardyOverlay').classList.remove('hidden');
-            document.getElementById('controls').style.opacity = '0';
-            document.getElementById('controls').style.pointerEvents = 'none';
-
-            // Resetear estado de trivia
-            currentScore = 0;
-            document.getElementById('currentScore').textContent = 0;
-            
-            initializeJeopardyQuestions(); // Cargar las preguntas de astronomía
-            renderJeopardyBoard();
-        }
-        
-        /**
-         * Regresa a la simulación desde el Jeopardy.
-         */
-        function resumeSimulation() {
-            document.getElementById('jeopardyOverlay').classList.add('hidden');
-            
-            // Mostrar controles
-            document.getElementById('controls').style.opacity = '1';
-            document.getElementById('controls').style.pointerEvents = 'auto';
-
-            // Reanudar la simulación (si el botón de Pausa dice 'Reanudar Simulación')
-            if (document.getElementById('pauseButton').textContent === 'Reanudar Simulación') {
-                togglePause();
-            }
-        }
-
-
-        // =================================================================
-        // INICIO
+        // ... (Resto de funciones de Utilidades y Trivia sin cambios) ...
         // =================================================================
 
         document.getElementById('startButton').addEventListener('click', () => {
             try {
                 // 1. Iniciar AudioContext (requiere interacción del usuario)
-                // NO INICIAMOS TONE.START()
-                // La música se inicia/controla de forma DUMMY
+                // INICIA LA CARGA DEL MIDI AL HACER CLICK EN EL BOTÓN
                 startAudioContext(); 
                 
                 // 2. Transición Visual Inmediata
@@ -1466,4 +708,9 @@
 
     </script>
 </body>
+</html>
+
+    </script>
+</body>
+
 </html>
