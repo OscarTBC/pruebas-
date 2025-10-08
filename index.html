@@ -94,36 +94,32 @@
         }
         
         /* PANTALLAS PEQUEÑAS (Mobile First) */
+        /* Note: Tailwind's 'sm:' (640px) is used to define desktop/tablet layout */
+        
         #planetCatalog {
-            display: none; /* Oculto por defecto en móvil */
-            width: 100%;
-            height: 30%;
-            bottom: 0;
-            top: auto;
+            /* Por defecto, lo ocultamos para móvil y forzamos el flujo de arrastre */
+            display: none; 
+            width: 12rem;
+            height: 100%;
+            top: 0;
+            right: 0; 
             overflow-y: auto;
         }
         #infoPanel {
-            /* Mover info panel a la parte superior en móvil para dejar espacio al catálogo de arrastre */
-            top: 0;
-            bottom: auto; 
+            /* Panel de información por defecto abajo */
+            top: auto;
+            bottom: 0; 
             z-index: 11;
         }
 
-        /* PANTALLAS GRANDES (sm: o más) */
+        /* PANTALLAS GRANDES (sm: 640px o más - Tablet/Escritorio) */
         @media (min-width: 640px) {
             #planetCatalog {
-                display: flex; /* Visible en tablet/escritorio */
-                width: 12rem; /* w-48 */
-                height: 100%;
-                top: 0;
-                bottom: auto;
-                left: auto;
-                right: 0;
+                /* Asegura que sea visible y a la derecha */
+                display: flex;
             }
             #infoPanel {
-                /* Vuelve a la posición original (parte inferior) */
-                top: auto;
-                bottom: 0;
+                /* Restablece el padding de escritorio */
                 padding: 1rem;
             }
         }
@@ -481,6 +477,8 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            // Ejecutar el layout responsive después de redimensionar
+            updateResponsiveLayout(); 
         }
 
         function calculateGravity(planet) {
@@ -774,6 +772,10 @@
             updateAudioVolumes();
             showMessage(`¡Planeta ${planetData.name} Creado!`, 1500, brightColor);
             updateInfoPanel(planetObject); // Mostrar información del planeta creado
+            
+            // NUEVO: Añadir listener de clic para actualizar el panel de info al hacer clic en el planeta
+            planetMesh.userData = { isPlanet: true, data: planetObject }; 
+            renderer.domElement.addEventListener('click', onPlanetClick, false);
         }
 
         function createPlanet(event) {
@@ -834,6 +836,38 @@
                 button.classList.remove('bg-green-600', 'hover:bg-green-700');
                 button.classList.add('bg-blue-600', 'hover:bg-blue-700');
                 showMessage('Simulación REANUDADA.', 1500, new THREE.Color(0x22c55e));
+            }
+        }
+        
+        /**
+         * Maneja el clic en un planeta en la escena 3D.
+         */
+        function onPlanetClick(event) {
+            // Convertir coordenadas de clic a coordenadas 3D
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(pointer, camera);
+            
+            // Buscar intersección con la malla de los planetas
+            const planetMeshes = planets.map(p => p.mesh);
+            const intersects = raycaster.intersectObjects(planetMeshes);
+            
+            if (intersects.length > 0) {
+                // El primer objeto interceptado es el más cercano a la cámara
+                const hitMesh = intersects[0].object;
+                
+                // Encontrar el objeto planeta completo
+                const planetObject = planets.find(p => p.mesh === hitMesh);
+                
+                if (planetObject) {
+                    // Si encontramos el planeta, actualizar el panel de información
+                    updateInfoPanel(planetObject);
+                }
+            } else {
+                // Si haces clic y no hay planeta, puedes mostrar la info del Sol más cercano o resetear el panel.
+                const sunData = SOLAR_SYSTEM_PLANETS.find(p => p.name === 'Sol');
+                updateInfoPanel(sunData);
             }
         }
 
@@ -1335,12 +1369,16 @@
                         
                         init();
                         animate();
-
-                        // HACE VISIBLE EL CONTROLS Y CATÁLOGO
+                        
+                        // Muestra los controles y catalogo y ajusta el layout responsive
                         document.getElementById('controls').style.opacity = '1';
                         document.getElementById('controls').style.pointerEvents = 'auto'; 
+
                         document.getElementById('planetCatalog').style.opacity = '1';
                         document.getElementById('planetCatalog').style.pointerEvents = 'auto'; 
+                        
+                        // Ajustar el layout responsivo
+                        updateResponsiveLayout();
 
                         showMessage('¡Simulación Iniciada! Arrastra un planeta para crear su órbita.', 3500, new THREE.Color(0x22c55e));
 
