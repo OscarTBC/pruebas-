@@ -4,12 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Armonía de las Esferas: Simulación de Órbitas y Trivia (Móvil)</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuración de Tailwind para incluir colores personalizados (Restaurado)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'space-dark': '#0d0d1a',
+                        'space-blue': '#1a202c',
+                        'brand-orange': '#f75b0f', 
+                        'trivia-teal': '#00c7b5',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: {
+                        fadeInUp: 'fadeInUp 0.5s ease-out forwards',
+                    }
+                }
+            }
+        }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
+        /* Estilos base ajustados para usar los colores de Tailwind */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #0d0d1a; /* space-dark */
+            color: white; 
+        }
         #webgl-output { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         .interactive-overlay { pointer-events: auto; }
@@ -18,10 +48,9 @@
 
         /* Estilos específicos para la interfaz */
         .sidebar { 
-            background-color: rgba(17, 24, 39, 0.9); 
+            background-color: rgba(26, 32, 44, 0.9); /* space-blue con opacidad */
             backdrop-filter: blur(5px); 
-            /* Para móvil: Ancho más pequeño y posición superior derecha */
-            width: 10rem; /* Reducido para móvil */
+            width: 10rem;
             right: 0.5rem; 
             top: 5rem;
             max-height: calc(100% - 6rem);
@@ -40,24 +69,23 @@
             bottom: 0; 
             left: 0;
             right: 0;
-            background-color: rgba(255, 255, 255, 0.95);
-            color: #1f2937;
+            background-color: #f75b0f; /* brand-orange */
+            color: white;
             padding: 12px;
             box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
             pointer-events: none;
             z-index: 20;
             opacity: 0;
-            transition: opacity 0.3s ease-in-out;
-            transform: translateY(100%); /* Inicialmente fuera de pantalla */
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            transform: translateY(100%);
         }
         #infoTooltip.active {
             opacity: 1;
-            transform: translateY(0); /* Entra en pantalla */
+            transform: translateY(0);
         }
 
         /* Ajustes de control para pantallas pequeñas */
         #actionButtons {
-             /* Posicionar arriba a la izquierda y usar flex-row en móviles */
             position: fixed;
             top: 0.5rem;
             left: 0.5rem;
@@ -73,13 +101,13 @@
     <div id="webgl-output"></div>
     
     <div id="infoTooltip" class="text-sm">
-        <button id="closeTooltip" class="absolute top-1 right-3 text-xl font-bold text-gray-700 pointer-events-auto">×</button>
+        <button id="closeTooltip" class="absolute top-1 right-3 text-xl font-bold text-white pointer-events-auto">×</button>
         <div id="tooltipContent"></div>
     </div>
 
-    <div id="loadingScreen" class="overlay flex flex-col items-center justify-center bg-black transition-opacity duration-500 z-50 interactive-overlay">
+    <div id="loadingScreen" class="overlay flex flex-col items-center justify-center bg-space-dark transition-opacity duration-500 z-50 interactive-overlay">
         <h1 class="text-4xl md:text-6xl text-white mb-8 font-extrabold">ARMÓNIA DE LAS ESFERAS</h1>
-        <button id="startButton" class="px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
+        <button id="startButton" class="px-8 py-4 bg-brand-orange text-white text-xl font-bold rounded-lg hover:bg-orange-700 transition duration-300 transform hover-scale">
             Iniciar Simulación
         </button>
     </div>
@@ -91,7 +119,7 @@
                 Reiniciar Sim.
             </button>
             
-            <button id="triviaButton" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-4">
+            <button id="triviaButton" class="px-4 py-2 bg-trivia-teal text-white rounded-lg hover:bg-teal-600 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-4">
                 Trivia
             </button>
         </div>
@@ -127,13 +155,13 @@
 
         <div id="triviaModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
             <div class="bg-gray-900 p-8 rounded-xl shadow-2xl max-w-lg w-full text-white interactive-overlay">
-                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-green-400">Trivia del Sistema Solar</h2>
+                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-trivia-teal">Trivia del Sistema Solar</h2>
                 <div id="triviaContent">
                     <p id="triviaQuestion" class="text-lg mb-6"></p>
                     <div id="triviaOptions" class="space-y-4">
                         </div>
                 </div>
-                <button id="nextQuestionButton" class="mt-6 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale hidden">
+                <button id="nextQuestionButton" class="mt-6 px-6 py-2 bg-trivia-teal text-white rounded-lg hover:bg-teal-600 transition duration-300 transform hover-scale hidden">
                     Siguiente Pregunta
                 </button>
                 <button id="closeTriviaButton" class="mt-6 px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300 transform hover-scale">
@@ -145,12 +173,12 @@
         <div id="welcomeModal" class="modal fixed inset-0 flex items-center justify-center p-4">
             <div class="bg-gray-900 p-10 rounded-xl shadow-2xl max-w-xl w-full text-white text-center interactive-overlay">
                 <img src="./armonia-orbital.png" alt="Símbolo de Armonía Orbital" class="w-24 h-auto mx-auto mb-6">
-                <h2 class="text-3xl font-bold mb-4 text-green-400">Armonía de las Esferas</h2>
+                <h2 class="text-3xl font-bold mb-4 text-brand-orange">Armonía de las Esferas</h2>
                 <p class="text-lg mb-6 text-gray-300">
                     Arrastra los cuerpos celestes desde el catálogo lateral para crear órbitas. 
                     Experimenta la física gravitacional en un entorno 3D.
                 </p>
-                <button id="closeWelcomeButton" class="px-8 py-3 bg-green-500 text-white text-lg font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
+                <button id="closeWelcomeButton" class="px-8 py-3 bg-brand-orange text-white text-lg font-bold rounded-lg hover:bg-orange-700 transition duration-300 transform hover-scale">
                     ¡Comenzar!
                 </button>
             </div>
@@ -180,7 +208,7 @@
         let currentDragLine = null;
         let isSimulationRunning = false;
         let animationFrameId = null;
-        let lastIntersectedObject = null; // Para la detección de toque
+        let lastIntersectedObject = null;
 
         // Estructura de un cuerpo celeste
         class CelestialBody {
@@ -322,7 +350,6 @@
                 alert("¡Crea al menos una órbita para comenzar la trivia!");
                 return;
             }
-            // Ocultar cualquier tooltip activo antes de iniciar la trivia
             hideTooltip();
 
             isAnsweringTrivia = true;
@@ -489,10 +516,8 @@
         }
 
         function onPlanetTap(event) {
-            // Previene que se active si hay otra interacción como arrastrar el mundo
             if (isDragging || document.getElementById('welcomeModal').classList.contains('active')) return; 
 
-            // Determinar si es un toque o click
             const clientX = event.clientX || (event.touches ? event.touches[0].clientX : undefined);
             const clientY = event.clientY || (event.touches ? event.touches[0].clientY : undefined);
 
@@ -506,11 +531,9 @@
             const intersects = raycaster.intersectObjects(interactableObjects, false);
 
             if (intersects.length > 0) {
-                // Hay un planeta tocado
-                controls.enabled = false; // Desactivar temporalmente los controles
+                controls.enabled = false;
                 const intersectedMesh = intersects[0].object;
                 
-                // Si se toca el mismo objeto, se oculta (toggle)
                 if (intersectedMesh === lastIntersectedObject) {
                     hideTooltip();
                     controls.enabled = true;
@@ -522,7 +545,6 @@
                     }
                 }
             } else {
-                // No se tocó un planeta, se oculta el tooltip si está visible
                 if (INFO_TOOLTIP.classList.contains('active')) {
                     hideTooltip();
                 }
@@ -545,18 +567,14 @@
         function onPointerDown(event) {
             const coords = getClientCoords(event);
             
-            // Si el evento viene del catálogo o controles, ignorar
             if (event.target.closest('#planetCatalog') || event.target.closest('#actionButtons') || event.target.closest('#infoTooltip')) return;
 
-            // Arrastre solo si dragBodyType está seteado (viene de un dragstart del catálogo)
             if (!dragBodyType) return;
             
-            // Previene el zoom/pan si es un evento de arrastre de órbita
             if (event.cancelable) event.preventDefault(); 
 
             isDragging = true;
             
-            // Obtener la posición 3D
             const position = get3DMousePosition(event);
             if (position) {
                 initialClickPoint.copy(position);
@@ -565,7 +583,6 @@
                 currentDragLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 }));
                 scene.add(currentDragLine);
 
-                // Desactivar controles de órbita durante el arrastre de creación
                 controls.enabled = false;
             }
         }
@@ -608,7 +625,6 @@
             dragBodyType = null;
         }
 
-        // Se mantienen los listeners de drag & drop para el catálogo, pero la creación usa onPointerDown/Move/Up
         let dragBodyTypeFromCatalog = null;
 
         document.querySelectorAll('.draggable-planet').forEach(element => {
@@ -640,18 +656,13 @@
                 return;
             }
 
-            // Usar el evento drop para setear el tipo de cuerpo y luego la creación ocurre en onPointerUp
             dragBodyType = e.dataTransfer.getData('text/plain');
 
-            // Simular un punto de inicio para que onPointerUp tenga datos válidos
             const position = get3DMousePosition(e);
             if (position) {
                 isDragging = true;
                 initialClickPoint.copy(position);
             }
-            
-            // Nota: En móvil, el drag & drop nativo es menos intuitivo que el toque, 
-            // pero este flujo mantiene la compatibilidad de escritorio.
         });
 
 
@@ -773,6 +784,7 @@
         
         function setupEventListeners() {
             
+            // CORRECCIÓN: Event Listener para el botón de inicio (ahora vinculado correctamente)
             document.getElementById('startButton').addEventListener('click', () => {
                 document.getElementById('loadingScreen').classList.add('opacity-0');
                 setTimeout(() => {
@@ -795,7 +807,6 @@
 
             document.getElementById('closeTriviaButton').addEventListener('click', closeTrivia);
             
-            // NUEVO: Botón de cierre explícito del Tooltip
             document.getElementById('closeTooltip').addEventListener('click', hideTooltip);
         }
 
