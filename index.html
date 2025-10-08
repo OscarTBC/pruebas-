@@ -213,7 +213,7 @@
         // CONFIGURACIÓN DE AUDIO (Lógica de MIDI/Tone.js REAL)
         // =================================================================
         
-        // 🚨 Configuración Crítica: URL base para acceder a los archivos MIDI de GitHub RAW
+        // 🚨 URL de Contenido Crudo de GitHub para los archivos MIDI
         const GITHUB_RAW_BASE_URL = "https://raw.githubusercontent.com/OscarTBC/pruebas-/main/";
         
         let isAudioContextStarted = false;
@@ -237,29 +237,27 @@
         const SONG_DATA_STRUCTURES = [];
         for (let i = 1; i <= TOTAL_SONGS; i++) {
             let layers = [];
-            // Ajustamos las capas de la estructura para reflejar el máximo de 8, 
-            // aunque solo cargaremos 7 para C2.
-            const totalLayers = (i === 1) ? 8 : 7;
+            // Ajuste para reflejar 7 o 8 capas reales disponibles
+            const totalLayers = (i === 1) ? 8 : 7; 
             for (let j = 1; j <= totalLayers; j++) { 
                 layers.push(getTrackName(i, j));
             }
             SONG_DATA_STRUCTURES.push({ name: `Cancion ${i}`, layers: layers });
         }
-        
+
         let INSTRUMENT_LAYERS = SONG_DATA_STRUCTURES[0].layers;
         let activePatterns = {}; // Mapa para silenciar/activar cada pista por planeta
         const activeNotes = {}; // Para el control visual del brillo
 
         /**
          * Inicializa el sintetizador y carga todos los archivos MIDI de GitHub.
-         * Esta función es ASÍNCRONA.
-         * @returns {Promise<void>}
          */
         async function loadMidiFiles() {
-            // 1. Crear un sintetizador simple para la reproducción
+            // 1. Crear un sintetizador simple para la reproducción con volumen ajustado
             globalSynth = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "square" },
                 envelope: { attack: 0.05, decay: 0.2, sustain: 0.8, release: 1 },
+                volume: -5 // Volumen ajustado para que se escuche mejor
             }).toDestination();
 
             const loadingPromises = [];
@@ -268,13 +266,13 @@
                 const songKey = `C${songNum}`;
                 SONG_TONE_PARTS[songKey] = {}; 
 
-                // 🚨 CORRECCIÓN MIDI: Solo cargamos las pistas que sabemos que existen.
+                // 🚨 Carga ajustada: C1 tiene 8, C2 tiene 7. Evita error 404.
                 const tracksToLoad = (songNum === 1) ? 8 : 7;
                 
                 for (let trackNum = 1; trackNum <= tracksToLoad; trackNum++) {
                     const trackName = getTrackName(songNum, trackNum);
                     const fileName = `${trackName}.mid`; 
-                    const fileUrl = GITHUB_RAW_BASE_URL + fileName; // URL de Contenido Crudo
+                    const fileUrl = GITHUB_RAW_BASE_URL + fileName; 
                     
                     loadingPromises.push(
                         Midi.fromUrl(fileUrl)
@@ -285,27 +283,24 @@
                                      return;
                                 }
 
-                                // Crear el Tone.Part para esta pista (inicialmente silenciado)
                                 const part = new Tone.Part((time, note) => {
-                                     // Reproducir la nota cuando el Part la active
                                      globalSynth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
                                      
-                                     // LÓGICA VISUAL: Activar el pulso de brillo
+                                     // Lógica de brillo: activar la nota visualmente
                                      activeNotes[trackName] = true;
                                      setTimeout(() => {
                                         activeNotes[trackName] = false;
                                      }, Tone.Time(note.duration).toMilliseconds() * 0.8);
 
-                                }, track.notes).start(0); // Inicia el loop en 0
+                                }, track.notes).start(0); // 🚀 Todas las pistas se inician en el tiempo 0
                                 
                                 part.loop = true;
-                                part.mute = true; // Inicia muteado
+                                part.mute = true; // Empiezan MUTEADOS (silencio)
                                 
                                 SONG_TONE_PARTS[songKey][trackName] = part;
                             })
                             .catch(e => {
                                 console.error(`Error al cargar el archivo MIDI ${fileUrl}:`, e);
-                                // Devolvemos una promesa resuelta para que Promise.all no falle por un error
                                 return Promise.resolve();
                             })
                     );
@@ -321,7 +316,6 @@
          * Función dummy para mantener la estructura de planet.synth
          */
         function createSynth() {
-            // Devuelve un objeto dummy ya que usamos globalSynth y Tone.Part
             return { synth: null, panner: null }; 
         }
 
@@ -332,7 +326,8 @@
         function startAudioContext() {
             if (!isAudioContextStarted) {
                 Tone.start(); 
-                Tone.Transport.bpm.value = 120; // BPM estándar, ajústalo si es necesario
+                // 🚀 BPM ajustado para sincronización
+                Tone.Transport.bpm.value = 140; 
                 Tone.Transport.start();
                 isAudioContextStarted = true;
                 console.log("🎵 Contexto de audio de Tone.js iniciado y transporte en marcha.");
@@ -345,30 +340,28 @@
         function changeSong() {
             const oldSongKey = `C${currentSongIndex + 1}`;
             
-            // 1. Mutear todas las pistas de la canción anterior
+            // 1. MUTEAR TODAS las pistas de la canción anterior
             if (SONG_TONE_PARTS[oldSongKey]) {
                 Object.values(SONG_TONE_PARTS[oldSongKey]).forEach(part => part.mute = true);
             }
             
             // 2. Ciclo a la siguiente canción
             currentSongIndex = (currentSongIndex + 1) % TOTAL_SONGS;
-            const newSongKey = `C${currentSongIndex + 1}`;
             
             // 3. Actualizar las capas de instrumento disponibles
             INSTRUMENT_LAYERS = SONG_DATA_STRUCTURES[currentSongIndex].layers;
 
             // 4. Reasignar capas a los planetas existentes
             planets.forEach((planet, index) => {
-                // Usamos el número real de capas cargadas para el módulo
                 const currentLayers = SONG_DATA_STRUCTURES[currentSongIndex].layers;
-                const layerIndex = index % currentLayers.length; 
+                const layerIndex = index % currentLayers.length;
                 const assignedLayer = currentLayers[layerIndex];
                 
                 planet.assignedLayer = assignedLayer;
                 planet.pulseTypeName = `Pista: ${assignedLayer}`; 
             });
             
-            // 5. Forzar la actualización para encender las nuevas pistas
+            // 5. Forzar la activación de las pistas en la nueva canción
             updateAudioVolumes();
             
             showMessage(`Música cambiada a: ${SONG_DATA_STRUCTURES[currentSongIndex].name}`, 3000, new THREE.Color(0xfacc15));
@@ -387,13 +380,15 @@
             const activeLayers = new Set(planets.map(p => p.assignedLayer));
             
             // 2. Controlar la muteación de los Tone.Part
+            // 🚀 Este es el interruptor de silencio (mute) que deseas:
             Object.keys(currentParts).forEach(trackName => {
                 const part = currentParts[trackName];
                 
+                // Si el planeta existe, DESMUTEAR la pista para que suene.
                 if (activeLayers.has(trackName)) {
-                    part.mute = false; // DESMUTEAR el Part MIDI
+                    part.mute = false; 
                 } else {
-                    part.mute = true; // MUTEAR el Part MIDI
+                    part.mute = true; // Sigue corriendo sincronizada, pero en silencio.
                 }
             });
 
@@ -498,7 +493,6 @@
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
-            // Añadir una clase para apuntar con CSS si queremos aumentar el grosor de línea
             renderer.domElement.classList.add('webgl-canvas'); 
             document.getElementById('container').appendChild(renderer.domElement);
             
@@ -532,11 +526,11 @@
             const sunRadius = 12;
             const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
             
-            // 🚨 CORRECCIÓN 1: Se cambia a MeshStandardMaterial para soportar la propiedad 'emissive' y evitar el fallo en el bucle.
+            // 🚨 Corrección visual: Usamos MeshStandardMaterial para soportar 'emissive'
             const sunMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0xffffff, 
-                emissive: 0xff8800, // Color de brillo
-                emissiveIntensity: 1.0 // Intensidad
+                emissive: 0xff8800, 
+                emissiveIntensity: 1.0 
             }); 
             const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
             sunMesh.position.copy(position);
@@ -986,7 +980,7 @@
                     const layer = planet.assignedLayer;
                     const isNoteActive = activeNotes[layer]; 
 
-                    // 🚨 CORRECCIÓN 2: Se añade verificación de seguridad antes de manipular el brillo
+                    // 🚨 Verificación de seguridad para evitar fallos de renderizado
                     if (planet.mesh && planet.mesh.material && planet.mesh.material.emissiveIntensity !== undefined) {
                         if (isNoteActive) {
                             const maxEmissive = 1.0; 
