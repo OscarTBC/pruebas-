@@ -515,7 +515,8 @@
 
         function updatePhysics(planet, deltaTime) {
             planet.velocity.add(planet.acceleration.clone().multiplyScalar(deltaTime));
-            planet.mesh.position.add(planet.mesh.position.clone().add(planet.velocity.clone().multiplyScalar(deltaTime)));
+            // CORRECCIÓN: Usar add() de Vector3 para actualizar la posición
+            planet.mesh.position.add(planet.velocity.clone().multiplyScalar(deltaTime));
         }
 
         function findNearestSun(clickPosition) {
@@ -733,7 +734,10 @@
             let initialPosition;
             if (isMobile) {
                 // Posición de creación segura frente al Sol (Z=100)
-                initialPosition = new THREE.Vector3(50, 0, 100); 
+                const nearestSunPos = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
+                // Ajustar la posición relativa al Sol más cercano
+                initialPosition = new THREE.Vector3(nearestSunPos.x + 70, nearestSunPos.y, nearestSunPos.z); 
+                
             } else {
                  // Cálculo normal para drag-and-drop
                 pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -1041,10 +1045,13 @@
             }
             
             // Posición de creación segura frente al Sol (Z=100)
-            const sunPosition = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
-            const creationOffset = new THREE.Vector3(50, 0, 50).add(sunPosition); // A 50 unidades del sol más cercano
+            // 1. Obtener la posición del Sol más cercano
+            const nearestSunPos = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
+            
+            // 2. Definir una posición de lanzamiento (ej. 70 unidades en X desde el Sol)
+            const initialPosition = new THREE.Vector3(nearestSunPos.x + 70, nearestSunPos.y, nearestSunPos.z); 
 
-            // Simular un evento para usar la función existente de creación de física
+            // Simular un evento de clic centrado (para usar la función de física)
             const virtualEvent = { 
                 clientX: (window.innerWidth / 2),
                 clientY: (window.innerHeight / 2),
@@ -1052,11 +1059,11 @@
             };
             
             if (planetData.isSun) {
-                // Si es el sol, usa un punto central para crearlo
+                // Si es el sol, usa la posición segura para crearlo
                 createSunOnClick(virtualEvent);
             } else {
                  // Si es un planeta, usa la posición segura calculada
-                 createPlanetFromCatalog(virtualEvent, planetData);
+                 createPlanetFromCatalog(virtualEvent, planetData, initialPosition); // Pasamos la posición inicial
             }
 
             showMessage(`¡${planetData.name} Creado!`, 1500, new THREE.Color(planetData.color));
