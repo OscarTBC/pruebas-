@@ -733,10 +733,10 @@
             
             let initialPosition;
             if (isMobile) {
-                // Posición de creación segura frente al Sol (Z=100)
+                // Posición de creación segura frente al Sol
                 const nearestSunPos = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
-                // Ajustar la posición relativa al Sol más cercano
-                initialPosition = new THREE.Vector3(nearestSunPos.x + 70, nearestSunPos.y, nearestSunPos.z); 
+                // CORRECCIÓN: Usar una posición fija y segura (100 unidades en X)
+                initialPosition = new THREE.Vector3(nearestSunPos.x + 100, nearestSunPos.y, nearestSunPos.z); 
                 
             } else {
                  // Cálculo normal para drag-and-drop
@@ -1048,8 +1048,8 @@
             // 1. Obtener la posición del Sol más cercano
             const nearestSunPos = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
             
-            // 2. Definir una posición de lanzamiento (ej. 70 unidades en X desde el Sol)
-            const initialPosition = new THREE.Vector3(nearestSunPos.x + 70, nearestSunPos.y, nearestSunPos.z); 
+            // 2. Definir una posición de lanzamiento (ej. 100 unidades en X desde el Sol)
+            const initialPosition = new THREE.Vector3(nearestSunPos.x + 100, nearestSunPos.y, nearestSunPos.z); 
 
             // Simular un evento de clic centrado (para usar la función de física)
             const virtualEvent = { 
@@ -1063,7 +1063,7 @@
                 createSunOnClick(virtualEvent);
             } else {
                  // Si es un planeta, usa la posición segura calculada
-                 createPlanetFromCatalog(virtualEvent, planetData, initialPosition); // Pasamos la posición inicial
+                 createPlanetFromCatalog(virtualEvent, planetData); // Pasamos el evento (dummy) y los datos
             }
 
             showMessage(`¡${planetData.name} Creado!`, 1500, new THREE.Color(planetData.color));
