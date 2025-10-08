@@ -220,7 +220,7 @@
         let musicStarted = false;
 
         const TOTAL_SONGS = 2; // C1 y C2
-        const TRACKS_PER_SONG = 8; // Asumimos un máximo de 8 pistas
+        const TRACKS_PER_SONG = 8; // Máximo de pistas (C1 tiene 8, C2 tiene 7)
         
         let currentSongIndex = 0; // 0 para C1, 1 para C2
         
@@ -237,8 +237,10 @@
         const SONG_DATA_STRUCTURES = [];
         for (let i = 1; i <= TOTAL_SONGS; i++) {
             let layers = [];
-            // Usamos TRACKS_PER_SONG para mantener la consistencia en la estructura
-            for (let j = 1; j <= TRACKS_PER_SONG; j++) { 
+            // Ajustamos las capas de la estructura para reflejar el máximo de 8, 
+            // aunque solo cargaremos 7 para C2.
+            const totalLayers = (i === 1) ? 8 : 7;
+            for (let j = 1; j <= totalLayers; j++) { 
                 layers.push(getTrackName(i, j));
             }
             SONG_DATA_STRUCTURES.push({ name: `Cancion ${i}`, layers: layers });
@@ -266,8 +268,7 @@
                 const songKey = `C${songNum}`;
                 SONG_TONE_PARTS[songKey] = {}; 
 
-                // 🚨 CORRECCIÓN CLAVE: Solo cargamos las pistas que existen. 
-                // Asumimos C1 tiene 8 (T1-T8) y C2 tiene 7 (T1-T7).
+                // 🚨 CORRECCIÓN MIDI: Solo cargamos las pistas que sabemos que existen.
                 const tracksToLoad = (songNum === 1) ? 8 : 7;
                 
                 for (let trackNum = 1; trackNum <= tracksToLoad; trackNum++) {
@@ -358,9 +359,10 @@
 
             // 4. Reasignar capas a los planetas existentes
             planets.forEach((planet, index) => {
-                // Si la nueva canción tiene menos pistas (ej. C2 solo tiene 7), el módulo se ajusta
-                const layerIndex = index % (SONG_DATA_STRUCTURES[currentSongIndex].layers.length); 
-                const assignedLayer = SONG_DATA_STRUCTURES[currentSongIndex].layers[layerIndex];
+                // Usamos el número real de capas cargadas para el módulo
+                const currentLayers = SONG_DATA_STRUCTURES[currentSongIndex].layers;
+                const layerIndex = index % currentLayers.length; 
+                const assignedLayer = currentLayers[layerIndex];
                 
                 planet.assignedLayer = assignedLayer;
                 planet.pulseTypeName = `Pista: ${assignedLayer}`; 
@@ -530,7 +532,7 @@
             const sunRadius = 12;
             const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
             
-            // 🚨 CORRECCIÓN CLAVE: Usamos MeshStandardMaterial para soportar 'emissive'
+            // 🚨 CORRECCIÓN 1: Se cambia a MeshStandardMaterial para soportar la propiedad 'emissive' y evitar el fallo en el bucle.
             const sunMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0xffffff, 
                 emissive: 0xff8800, // Color de brillo
@@ -980,18 +982,19 @@
                     }
 
 
-                    // c. LÓGICA DE VISUALIZACIÓN RÍTMICA (Basado en Tone.Part)
+                    // c. LÓGICA DE VISUALIZACIÓN RÍTMICA (CON VERIFICACIÓN DE SEGURIDAD)
                     const layer = planet.assignedLayer;
-                    const isNoteActive = activeNotes[layer]; // Se actualiza dentro del Tone.Part.callback
+                    const isNoteActive = activeNotes[layer]; 
 
-                    if (isNoteActive) {
-                        // Si el instrumento asignado está "sonando", hacerlo brillar
-                        const maxEmissive = 1.0; 
-                        planet.mesh.material.emissiveIntensity = THREE.MathUtils.lerp(planet.mesh.material.emissiveIntensity, maxEmissive, 0.5);
-                    } else {
-                        // Si no está "sonando", bajar el brillo
-                        const minEmissive = 0.1;
-                        planet.mesh.material.emissiveIntensity = THREE.MathUtils.lerp(planet.mesh.material.emissiveIntensity, minEmissive, 0.1);
+                    // 🚨 CORRECCIÓN 2: Se añade verificación de seguridad antes de manipular el brillo
+                    if (planet.mesh && planet.mesh.material && planet.mesh.material.emissiveIntensity !== undefined) {
+                        if (isNoteActive) {
+                            const maxEmissive = 1.0; 
+                            planet.mesh.material.emissiveIntensity = THREE.MathUtils.lerp(planet.mesh.material.emissiveIntensity, maxEmissive, 0.5);
+                        } else {
+                            const minEmissive = 0.1;
+                            planet.mesh.material.emissiveIntensity = THREE.MathUtils.lerp(planet.mesh.material.emissiveIntensity, minEmissive, 0.1);
+                        }
                     }
 
 
@@ -1455,10 +1458,9 @@
         // INICIO
         // =================================================================
 
-        document.getElementById('startButton').addEventListener('click', async () => { // <-- Se hizo ASÍNCRONA
+        document.getElementById('startButton').addEventListener('click', async () => { 
             try {
                 // 1. Iniciar AudioContext (requiere interacción del usuario)
-                // 🚨 Paso 1: Cargar los archivos MIDI antes de todo
                 showMessage('Cargando recursos de audio (MIDI)...', 9000, new THREE.Color(0xfacc15));
                 await loadMidiFiles(); 
                 startAudioContext(); 
