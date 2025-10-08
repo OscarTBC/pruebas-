@@ -88,7 +88,7 @@
             z-index: 10;
         }
         .catalog-item {
-            cursor: grab;
+            cursor: pointer; /* Cambiado de grab a pointer para móvil */
             user-select: none;
             transition: transform 0.1s;
         }
@@ -479,6 +479,23 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             // Ejecutar el layout responsive después de redimensionar
             updateResponsiveLayout(); 
+        }
+        
+        /**
+         * Mueve y ajusta la visibilidad del catálogo para adaptarse a la pantalla.
+         */
+        function updateResponsiveLayout() {
+            const catalog = document.getElementById('planetCatalog');
+            const info = document.getElementById('infoPanel');
+            
+            // Si es móvil (< 640px), ocultamos el catálogo de arrastre
+            if (window.innerWidth < 640) {
+                catalog.style.display = 'none'; // Ocultar catálogo
+                info.classList.remove('p-4'); // Eliminar padding de escritorio en infoPanel
+            } else {
+                catalog.style.display = 'flex'; // Mostrar catálogo
+                info.classList.add('p-4');
+            }
         }
 
         function calculateGravity(planet) {
@@ -916,9 +933,24 @@
             SOLAR_SYSTEM_PLANETS.forEach((planetData, index) => {
                 const item = document.createElement('div');
                 item.className = 'catalog-item flex items-center p-2 bg-gray-800 rounded-lg shadow-md hover:bg-gray-700 transition duration-150';
-                item.draggable = true;
+                
+                // Detección de dispositivo para la interacción
+                if (window.innerWidth >= 640) {
+                     // Solo permite arrastrar en dispositivos grandes (Tablet/Escritorio)
+                    item.draggable = true;
+                } else {
+                    // En móvil, la interacción es solo con click/touch
+                    item.draggable = false;
+                }
+
                 item.dataset.planetIndex = index;
                 item.dataset.name = planetData.name;
+                
+                // NUEVO: Manejar el click/touch para creación instantánea en móviles
+                if (window.innerWidth < 640) {
+                    item.addEventListener('click', () => createPlanetAtCenter(planetData));
+                }
+
 
                 // Si es el Sol, lo hacemos más grande en el catálogo
                 const radiusSize = planetData.isSun ? 24 : 16;
@@ -928,30 +960,33 @@
 
                 item.innerHTML = sphere + info;
                 
-                // --- Eventos de Arrastre ---
-                item.addEventListener('dragstart', (e) => {
-                    dragTarget = planetData;
-                    e.dataTransfer.setData('text/plain', planetData.name);
-                    item.classList.add('dragging');
-                    
-                    // Crear un mesh temporal más grande para arrastrar
-                    dragObject = new THREE.Mesh(
-                        new THREE.SphereGeometry(planetData.radius * 2.5, 16, 16), 
-                        new THREE.MeshBasicMaterial({ color: planetData.color, transparent: true, opacity: 0.5 })
-                    );
-                    scene.add(dragObject);
-                    dragObject.visible = true; 
+                // --- Eventos de Arrastre (Solo para Desktop/Tablet) ---
+                if (item.draggable) {
+                    item.addEventListener('dragstart', (e) => {
+                        dragTarget = planetData;
+                        e.dataTransfer.setData('text/plain', planetData.name);
+                        item.classList.add('dragging');
+                        
+                        // Crear un mesh temporal más grande para arrastrar
+                        dragObject = new THREE.Mesh(
+                            new THREE.SphereGeometry(planetData.radius * 2.5, 16, 16), 
+                            new THREE.MeshBasicMaterial({ color: planetData.color, transparent: true, opacity: 0.5 })
+                        );
+                        scene.add(dragObject);
+                        dragObject.visible = true; 
 
-                });
+                    });
 
-                item.addEventListener('dragend', (e) => {
-                    item.classList.remove('dragging');
-                    dragTarget = null;
-                    if (dragObject) {
-                        scene.remove(dragObject);
-                        dragObject = null;
-                    }
-                });
+                    item.addEventListener('dragend', (e) => {
+                        item.classList.remove('dragging');
+                        dragTarget = null;
+                        if (dragObject) {
+                            scene.remove(dragObject);
+                            dragObject = null;
+                        }
+                    });
+                }
+                
 
                 catalogList.appendChild(item);
                 
@@ -984,6 +1019,48 @@
             }
         }
         
+        /**
+         * NUEVO: Crea un planeta en una posición predefinida cerca del Sol (para móvil).
+         */
+        function createPlanetAtCenter(planetData) {
+             if (suns.length === 0) {
+                showMessage('No hay soles para orbitar. ¡Crea un Sol primero!', 3000, new THREE.Color(0xef4444));
+                return;
+            }
+            
+            // Simular un punto de creación para una órbita estable
+            const initialPosition = new THREE.Vector3(50, 0, 5); 
+            
+            // Simular un evento para usar la función existente de creación de física
+            const dummyEvent = { 
+                clientX: window.innerWidth / 2, 
+                clientY: window.innerHeight / 2 
+            };
+            
+            if (planetData.isSun) {
+                createSunOnClick(dummyEvent);
+            } else {
+                 // Usamos createPlanetFromCatalog, pero solo para la parte de la física
+                 const nearestSun = findNearestSun(initialPosition);
+                 if (!nearestSun) return;
+                 
+                 // Simular un clic en la posición inicial (50, 0, 5) para que entre en órbita
+                 const clickX = renderer.domElement.clientWidth / 2;
+                 const clickY = renderer.domElement.clientHeight / 2;
+                 
+                 const virtualEvent = {
+                    clientX: clickX,
+                    clientY: clickY,
+                    preventDefault: () => {}
+                 };
+                 
+                 createPlanetFromCatalog(virtualEvent, planetData);
+            }
+
+            showMessage(`¡${planetData.name} Creado!`, 1500, new THREE.Color(planetData.color));
+        }
+
+
         function generateDynamicQuestions() {
             // Genera preguntas dinámicas basadas en los datos de SOLAR_SYSTEM_PLANETS
             const categories = {};
