@@ -221,7 +221,7 @@
 
         const TOTAL_SONGS = 2; // C1 y C2
         const TRACKS_PER_SONG = 8; // Máximo de pistas (C1 tiene 8, C2 tiene 7)
-        
+
         let currentSongIndex = 0; // 0 para C1, 1 para C2
         
         // Almacena los Tone.Part (los bucles de reproducción)
@@ -237,7 +237,6 @@
         const SONG_DATA_STRUCTURES = [];
         for (let i = 1; i <= TOTAL_SONGS; i++) {
             let layers = [];
-            // Ajuste para reflejar 7 o 8 capas reales disponibles
             const totalLayers = (i === 1) ? 8 : 7; 
             for (let j = 1; j <= totalLayers; j++) { 
                 layers.push(getTrackName(i, j));
@@ -246,18 +245,29 @@
         }
 
         let INSTRUMENT_LAYERS = SONG_DATA_STRUCTURES[0].layers;
-        let activePatterns = {}; // Mapa para silenciar/activar cada pista por planeta
-        const activeNotes = {}; // Para el control visual del brillo
+        let activePatterns = {}; 
+        const activeNotes = {}; 
 
         /**
          * Inicializa el sintetizador y carga todos los archivos MIDI de GitHub.
          */
         async function loadMidiFiles() {
-            // 1. Crear un sintetizador simple para la reproducción con volumen ajustado
+            // 1. Crear un sintetizador mejorado con envolvente más larga y sonido más rico
             globalSynth = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "square" },
-                envelope: { attack: 0.05, decay: 0.2, sustain: 0.8, release: 1 },
-                volume: -5 // Volumen ajustado para que se escuche mejor
+                // Usamos un oscilador 'fatsaw' para un sonido más potente
+                oscillator: { 
+                    type: "fatsaw", 
+                    count: 3, 
+                    spread: 30 
+                },
+                // 🚀 Envolvente Extendida: Estos valores aseguran que las notas largas NO se corten
+                envelope: { 
+                    attack: 0.05, 
+                    decay: 1.5,     // 1.5 segundos de decay
+                    sustain: 0.9,   
+                    release: 8      // 🚨 8 SEGUNDOS de liberación
+                },
+                volume: -5 
             }).toDestination();
 
             const loadingPromises = [];
@@ -266,7 +276,7 @@
                 const songKey = `C${songNum}`;
                 SONG_TONE_PARTS[songKey] = {}; 
 
-                // 🚨 Carga ajustada: C1 tiene 8, C2 tiene 7. Evita error 404.
+                // Carga ajustada: C1 tiene 8, C2 tiene 7. Evita error 404.
                 const tracksToLoad = (songNum === 1) ? 8 : 7;
                 
                 for (let trackNum = 1; trackNum <= tracksToLoad; trackNum++) {
@@ -286,16 +296,15 @@
                                 const part = new Tone.Part((time, note) => {
                                      globalSynth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
                                      
-                                     // Lógica de brillo: activar la nota visualmente
                                      activeNotes[trackName] = true;
                                      setTimeout(() => {
                                         activeNotes[trackName] = false;
                                      }, Tone.Time(note.duration).toMilliseconds() * 0.8);
 
-                                }, track.notes).start(0); // 🚀 Todas las pistas se inician en el tiempo 0
+                                }, track.notes).start(0); 
                                 
                                 part.loop = true;
-                                part.mute = true; // Empiezan MUTEADOS (silencio)
+                                part.mute = true; // Empiezan MUTEADOS
                                 
                                 SONG_TONE_PARTS[songKey][trackName] = part;
                             })
@@ -326,7 +335,7 @@
         function startAudioContext() {
             if (!isAudioContextStarted) {
                 Tone.start(); 
-                // 🚀 BPM ajustado para sincronización
+                // BPM ajustado para sincronización
                 Tone.Transport.bpm.value = 140; 
                 Tone.Transport.start();
                 isAudioContextStarted = true;
@@ -380,7 +389,6 @@
             const activeLayers = new Set(planets.map(p => p.assignedLayer));
             
             // 2. Controlar la muteación de los Tone.Part
-            // 🚀 Este es el interruptor de silencio (mute) que deseas:
             Object.keys(currentParts).forEach(trackName => {
                 const part = currentParts[trackName];
                 
@@ -526,7 +534,7 @@
             const sunRadius = 12;
             const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
             
-            // 🚨 Corrección visual: Usamos MeshStandardMaterial para soportar 'emissive'
+            // Corrección visual: Usamos MeshStandardMaterial para soportar 'emissive'
             const sunMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0xffffff, 
                 emissive: 0xff8800, 
@@ -980,7 +988,7 @@
                     const layer = planet.assignedLayer;
                     const isNoteActive = activeNotes[layer]; 
 
-                    // 🚨 Verificación de seguridad para evitar fallos de renderizado
+                    // Verificación de seguridad para evitar fallos de renderizado
                     if (planet.mesh && planet.mesh.material && planet.mesh.material.emissiveIntensity !== undefined) {
                         if (isNoteActive) {
                             const maxEmissive = 1.0; 
