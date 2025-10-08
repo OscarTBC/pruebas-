@@ -515,7 +515,7 @@
 
         function updatePhysics(planet, deltaTime) {
             planet.velocity.add(planet.acceleration.clone().multiplyScalar(deltaTime));
-            planet.mesh.position.add(planet.velocity.clone().multiplyScalar(deltaTime));
+            planet.mesh.position.add(planet.mesh.position.clone().add(planet.velocity.clone().multiplyScalar(deltaTime)));
         }
 
         function findNearestSun(clickPosition) {
@@ -727,13 +727,24 @@
                 return;
             }
 
-            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(pointer, camera);
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-            const intersection = new THREE.Vector3();
-            raycaster.ray.intersectPlane(plane, intersection);
-            const initialPosition = intersection.clone();
+            // Detección si estamos en móvil (usamos la posición segura)
+            const isMobile = window.innerWidth < 640;
+            
+            let initialPosition;
+            if (isMobile) {
+                // Posición de creación segura frente al Sol (Z=100)
+                initialPosition = new THREE.Vector3(50, 0, 100); 
+            } else {
+                 // Cálculo normal para drag-and-drop
+                pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+                pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(pointer, camera);
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const intersection = new THREE.Vector3();
+                raycaster.ray.intersectPlane(plane, intersection);
+                initialPosition = intersection.clone();
+            }
+
             const nearestSun = findNearestSun(initialPosition);
             const relativePosition = initialPosition.clone().sub(nearestSun.mesh.position);
             const distance = relativePosition.length();
@@ -948,6 +959,7 @@
                 
                 // NUEVO: Manejar el click/touch para creación instantánea en móviles
                 if (window.innerWidth < 640) {
+                    // Si es móvil, al tocar creamos el planeta
                     item.addEventListener('click', () => createPlanetAtCenter(planetData));
                 }
 
@@ -1028,32 +1040,22 @@
                 return;
             }
             
-            // Simular un punto de creación para una órbita estable
-            const initialPosition = new THREE.Vector3(50, 0, 5); 
-            
+            // Posición de creación segura frente al Sol (Z=100)
+            const sunPosition = findNearestSun(new THREE.Vector3(0, 0, 0)).mesh.position;
+            const creationOffset = new THREE.Vector3(50, 0, 50).add(sunPosition); // A 50 unidades del sol más cercano
+
             // Simular un evento para usar la función existente de creación de física
-            const dummyEvent = { 
-                clientX: window.innerWidth / 2, 
-                clientY: window.innerHeight / 2 
+            const virtualEvent = { 
+                clientX: (window.innerWidth / 2),
+                clientY: (window.innerHeight / 2),
+                preventDefault: () => {}
             };
             
             if (planetData.isSun) {
-                createSunOnClick(dummyEvent);
+                // Si es el sol, usa un punto central para crearlo
+                createSunOnClick(virtualEvent);
             } else {
-                 // Usamos createPlanetFromCatalog, pero solo para la parte de la física
-                 const nearestSun = findNearestSun(initialPosition);
-                 if (!nearestSun) return;
-                 
-                 // Simular un clic en la posición inicial (50, 0, 5) para que entre en órbita
-                 const clickX = renderer.domElement.clientWidth / 2;
-                 const clickY = renderer.domElement.clientHeight / 2;
-                 
-                 const virtualEvent = {
-                    clientX: clickX,
-                    clientY: clickY,
-                    preventDefault: () => {}
-                 };
-                 
+                 // Si es un planeta, usa la posición segura calculada
                  createPlanetFromCatalog(virtualEvent, planetData);
             }
 
@@ -1307,7 +1309,7 @@
                 
             } catch (e) {
                 console.error("Fallo durante la inicialización de Three.js:", e);
-                showMessage(`Error de inicialización: ${e.message}`, 5000, new THREE.Color(0xff0000));
+                showMessage(`Error de inicialización: ${e.message}. Revisa la consola.`, 5000, new THREE.Color(0xff0000));
             }
         }
         
