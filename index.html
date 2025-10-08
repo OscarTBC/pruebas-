@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Armonía de las Esferas: Simulación de Órbitas y Trivia</title>
+    <title>Armonía de las Esferas: Simulación Musical 3D</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; }
         #webgl-output { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         .interactive-overlay { pointer-events: auto; }
+        /* Estilo para el rastro de órbita (opcional, Three.js maneja la línea) */
+        .loading-bar { height: 4px; background-color: #4ade80; transition: width 0.3s; }
         .hover-scale { transition: transform 0.1s; }
         .hover-scale:hover { transform: scale(1.05); }
 
@@ -37,7 +36,10 @@
 
     <div id="loadingScreen" class="overlay flex flex-col items-center justify-center bg-black transition-opacity duration-500 z-50 interactive-overlay">
         <h1 class="text-4xl md:text-6xl text-white mb-8 font-extrabold">ARMÓNIA DE LAS ESFERAS</h1>
-        <button id="startButton" class="px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
+        <div class="w-64 bg-gray-700 rounded-full h-1.5 mb-8">
+            <div id="loadingBar" class="loading-bar rounded-full" style="width: 0%;"></div>
+        </div>
+        <button id="startButton" class="px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale hidden">
             Iniciar Simulación
         </button>
     </div>
@@ -55,6 +57,12 @@
                     Iniciar Trivia
                 </button>
             </div>
+
+            <div class="bg-gray-800 p-3 rounded-lg text-white shadow-lg text-right">
+                <p class="text-xs text-gray-400">Pista Musical:</p>
+                <p id="currentTrackInfo" class="text-base font-bold">Inactivo</p>
+                <p id="currentTempo" class="text-xs text-green-400">Tempo: N/A</p>
+            </div>
         </div>
 
         <div id="planetCatalog" class="sidebar p-4 rounded-xl shadow-2xl w-full max-w-xs absolute right-4 top-16 max-h-4/5 overflow-y-auto interactive-overlay pt-4">
@@ -68,37 +76,37 @@
                 <div id="body-slow-low" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="slow-low">
                     <div class="w-8 h-8 rounded-full bg-red-500 mr-3"></div>
                     <div>
-                        <p class="text-white font-semibold">Cuerpo Tipo I (Rojo)</p>
-                        <p class="text-sm text-gray-400">Gran Masa/Baja Velocidad</p>
+                        <p class="text-white font-semibold">Grave y Lento (Bajo)</p>
+                        <p class="text-sm text-gray-400">Órbita Larga (Baja Frecuencia)</p>
                     </div>
                 </div>
 
                 <div id="body-medium-rhythm" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="medium-rhythm">
                     <div class="w-8 h-8 rounded-full bg-yellow-500 mr-3"></div>
                     <div>
-                        <p class="text-white font-semibold">Cuerpo Tipo II (Amarillo)</p>
-                        <p class="text-sm text-gray-400">Masa Media/Velocidad Estándar</p>
+                        <p class="text-white font-semibold">Ritmo Medio (Percusión)</p>
+                        <p class="text-sm text-gray-400">Órbita Estándar (Ritmo)</p>
                     </div>
                 </div>
 
                 <div id="body-fast-high" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="fast-high">
                     <div class="w-8 h-8 rounded-full bg-blue-500 mr-3"></div>
                     <div>
-                        <p class="text-white font-semibold">Cuerpo Tipo III (Azul)</p>
-                        <p class="text-sm text-gray-400">Poca Masa/Alta Velocidad</p>
+                        <p class="text-white font-semibold">Agudo y Rápido (Melodía)</p>
+                        <p class="text-sm text-gray-400">Órbita Corta (Alta Frecuencia)</p>
                     </div>
                 </div>
             </div>
 
             <hr class="my-4 border-gray-700">
 
-            <p class="text-sm text-gray-500">Arrastra para generar órbita.</p>
+            <p class="text-sm text-gray-500">Cada cuerpo celeste activa una pista musical diferente.</p>
 
         </div>
 
         <div id="triviaModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
             <div class="bg-gray-900 p-8 rounded-xl shadow-2xl max-w-lg w-full text-white interactive-overlay">
-                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-green-400">Trivia del Sistema Solar</h2>
+                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-green-400">Trivia Musical</h2>
                 <div id="triviaContent">
                     <p id="triviaQuestion" class="text-lg mb-6"></p>
                     <div id="triviaOptions" class="space-y-4">
@@ -119,7 +127,7 @@
                 <h2 class="text-3xl font-bold mb-4 text-green-400">Armonía de las Esferas</h2>
                 <p class="text-lg mb-6 text-gray-300">
                     Arrastra los cuerpos celestes desde el catálogo lateral para crear órbitas. 
-                    Experimenta la física gravitacional en un entorno 3D.
+                    Cada órbita activa una pista musical, ¡crea tu propia orquesta cósmica!
                 </p>
                 <button id="closeWelcomeButton" class="px-8 py-3 bg-green-500 text-white text-lg font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
                     ¡Comenzar!
@@ -127,6 +135,12 @@
             </div>
         </div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/dat.gui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/index.min.js"></script>
 
 
     <script>
@@ -150,22 +164,24 @@
         let isSimulationRunning = false;
         let animationFrameId = null;
 
-        // Estructura de un cuerpo celeste (sin ninguna referencia a Tone.js)
+        // Estructura de un cuerpo celeste
         class CelestialBody {
             constructor(mass, type, mesh, position, initialVelocity, color) {
                 this.mass = mass;
-                this.type = type;
+                this.type = type; // e.g., 'slow-low', 'medium-rhythm', 'fast-high'
                 this.mesh = mesh;
                 this.mesh.position.copy(position);
                 this.velocity = initialVelocity; // Vector3
                 this.color = color;
-                this.trail = null;
+                this.synth = null; // Sintetizador de Tone.js
+                this.trail = null; // Objeto THREE.Line para el rastro
                 this.trailGeometry = null;
                 this.trailMaterial = null;
-                this.trailLength = 50; 
+                this.trailLength = 50; // Número de segmentos del rastro (buffer circular)
                 this.trailIndex = 0;
-                this.orbitPositions = new Array(this.trailLength).fill(new THREE.Vector3()); 
+                this.orbitPositions = new Array(this.trailLength).fill(new THREE.Vector3()); // Buffer circular de posiciones
                 this.isOrbiting = true;
+                this.midiTrack = null; // Pista MIDI asignada
 
                 this.initTrail();
             }
@@ -173,12 +189,15 @@
             // Inicializa el rastro de órbita
             initTrail() {
                 this.trailGeometry = new THREE.BufferGeometry();
+                // El BufferAttribute tiene que ser lo suficientemente grande para almacenar
+                // todas las coordenadas XYZ
                 const positions = new Float32Array(this.trailLength * 3); 
                 this.trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
                 
+                // Usamos LineSegments para dibujar una línea
                 this.trailMaterial = new THREE.LineBasicMaterial({ color: this.color, linewidth: 2 });
                 this.trail = new THREE.Line(this.trailGeometry, this.trailMaterial);
-                this.trail.frustumCulled = false;
+                this.trail.frustumCulled = false; // Importante para buffers dinámicos
                 scene.add(this.trail);
             }
 
@@ -191,13 +210,18 @@
                 const distanceSq = position.lengthSq();
                 const distance = Math.sqrt(distanceSq);
 
+                // Si está demasiado cerca, la simulacion puede explotar.
                 if (distance < 1.0) { 
-                    this.isOrbiting = false; 
+                    this.isOrbiting = false; // Desactivar la órbita o reiniciar
                     return; 
                 }
 
                 const forceMagnitude = (G * SUN_MASS * this.mass) / distanceSq;
+
+                // Dirección de la fuerza (hacia el Sol)
                 const direction = position.clone().negate().normalize();
+                
+                // F = m*a -> a = F/m
                 const acceleration = direction.multiplyScalar(forceMagnitude / this.mass);
 
                 // 2. Integración de Euler/Verlet (Actualizar velocidad y posición)
@@ -206,20 +230,33 @@
 
                 // 3. Actualizar el rastro (Buffer Circular)
                 this.updateTrail();
+
+                // 4. Sincronización musical
+                this.updateMusic();
             }
 
             updateTrail() {
+                // Almacenar la nueva posición en el buffer circular
                 const newPosition = this.mesh.position.clone();
                 this.orbitPositions[this.trailIndex] = newPosition;
                 
                 this.trailIndex = (this.trailIndex + 1) % this.trailLength;
 
+                // --- Corrección del "Salto de Cuerda" ---
+                // Para THREE.Line, necesitamos reordenar los puntos para que la línea se dibuje
+                // desde el punto más antiguo hasta el punto más reciente de forma contínua.
+                
                 const positionsAttribute = this.trailGeometry.getAttribute('position');
                 const positionsArray = positionsAttribute.array;
 
                 if (this.trailIndex === 0) {
+                    // El buffer está lleno (o acaba de llenarse). Dibujar desde trailIndex 0
+                    // Al estar el buffer lleno, 'trailIndex' apunta al punto más viejo.
+                    // El orden debe ser: [trailIndex], [trailIndex+1], ..., [trailLength-1], [0], ..., [trailIndex-1]
+
                     for (let i = 0; i < this.trailLength; i++) {
-                        const currentIdx = i; // Siempre desde el inicio 0
+                        // Índice en el array de posiciones: (trailIndex + i) % trailLength
+                        const currentIdx = (0 + i) % this.trailLength; // Siempre desde el inicio 0
 
                         positionsArray[i * 3 + 0] = this.orbitPositions[currentIdx].x;
                         positionsArray[i * 3 + 1] = this.orbitPositions[currentIdx].y;
@@ -227,11 +264,13 @@
                     }
 
                 } else {
+                    // El buffer aún se está llenando. Dibujar solo hasta trailIndex - 1.
                     for (let i = 0; i < this.trailIndex; i++) {
                         positionsArray[i * 3 + 0] = this.orbitPositions[i].x;
                         positionsArray[i * 3 + 1] = this.orbitPositions[i].y;
                         positionsArray[i * 3 + 2] = this.orbitPositions[i].z;
                     }
+                    // Ocultar los puntos restantes para evitar la conexión
                     for (let i = this.trailIndex; i < this.trailLength; i++) {
                         positionsArray[i * 3 + 0] = this.mesh.position.x;
                         positionsArray[i * 3 + 1] = this.mesh.position.y;
@@ -240,11 +279,66 @@
                 }
 
                 positionsAttribute.needsUpdate = true;
+                
+                // Configurar el conteo si solo queremos dibujar la parte llena
                 this.trailGeometry.setDrawRange(0, this.trailIndex === 0 ? this.trailLength : this.trailIndex);
             }
 
-            // Limpieza (sin referencias a Tone.js)
+
+            // Asigna y empieza la pista MIDI
+            startMidiTrack(midiTrack) {
+                this.midiTrack = midiTrack;
+                // El track del MIDI ya debe tener un instrumento y un loop
+                this.midiTrack.loop = true;
+                this.midiTrack.start(0);
+
+                // Configurar un filtro para modular la música
+                this.filter = new Tone.Filter(200, "lowpass").toDestination();
+                this.midiTrack.connect(this.filter); // Conectar la pista al filtro
+            }
+
+            // Sincronización musical
+            updateMusic() {
+                if (!this.midiTrack) return;
+
+                // Mapear la distancia al Sol (0-250 unidades) a un valor de filtro (por ejemplo, 50-10000 Hz)
+                const distance = this.mesh.position.length();
+                
+                // Normalización de la distancia (ajustar si las órbitas son más grandes/pequeñas)
+                // Asumiendo que la mayoría de órbitas caen entre 10 y 250 unidades.
+                const minDistance = 10;
+                const maxDistance = 250;
+                let normalizedDistance = (distance - minDistance) / (maxDistance - minDistance);
+                normalizedDistance = Math.min(1.0, Math.max(0.0, normalizedDistance)); // Clamp 0-1
+
+                // Mapear el valor normalizado a la frecuencia de corte del filtro (Lowpass)
+                // Cerca del sol (0) -> Frecuencia Baja (sonido más "apagado")
+                // Lejos del sol (1) -> Frecuencia Alta (sonido más "brillante")
+                const minFilterFreq = 50;
+                const maxFilterFreq = 10000;
+                const filterFrequency = minFilterFreq + (maxFilterFreq - minFilterFreq) * normalizedDistance;
+                
+                // Aplicar el cambio de forma suave (rampa) para evitar clicks
+                this.filter.frequency.rampTo(filterFrequency, TIME_STEP * 2);
+
+                // --- Opcional: Modulación del Panning (Estéreo) ---
+                // Mapear la posición X al Panning (-1.0 (Izquierda) a 1.0 (Derecha))
+                // const maxAbsX = 250; 
+                // let normalizedX = this.mesh.position.x / maxAbsX;
+                // normalizedX = Math.min(1.0, Math.max(-1.0, normalizedX));
+                // this.panner.pan.rampTo(normalizedX, TIME_STEP * 2);
+            }
+
+
+            // Limpieza
             dispose() {
+                // Detener la música y liberar recursos de Tone.js
+                if (this.midiTrack) {
+                    this.midiTrack.stop();
+                    this.midiTrack.dispose();
+                    this.filter.dispose();
+                }
+                // Liberar recursos de Three.js
                 scene.remove(this.mesh);
                 this.mesh.geometry.dispose();
                 this.mesh.material.dispose();
@@ -255,34 +349,144 @@
         }
 
         // ==========================================================================================
+        // CONFIGURACIÓN DE TONE.JS (Música)
+        // ==========================================================================================
+        const songData = [
+            { name: "Salsa Clásica (Canción 1)", tracks: 4 },
+            { name: "Cumbia Moderna (Canción 2)", tracks: 4 },
+            { name: "Ritmo Fusión (Canción 3)", tracks: 4 }
+        ];
+        
+        // Mapeo de tipos de cuerpo a índice de pista dentro de la canción (0-based)
+        // Por ejemplo, 'slow-low' siempre será la pista 0 (Bajo)
+        const typeToTrackIndex = {
+            'slow-low': 0, // Bajo / Groove
+            'medium-rhythm': 1, // Percusión / Clave
+            'fast-high': 2, // Melodía / Vientos
+            'fast-high-2': 3, // Pista extra
+        };
+
+        let currentSongIndex = 0; // La primera canción es la 0
+        let midiPlayers = []; // Arreglo para almacenar los Tone.js Players/Tracks
+        let currentTempo = 120;
+        let midiLoadedCount = 0;
+        let totalTracksToLoad = 0;
+
+        // La simulación buscará este archivo: C[número de canción]_T[número de pista].mid
+        const getTrackPath = (songIndex, trackIndex) => {
+            const songNum = songIndex + 1; 
+            const trackNum = trackIndex + 1; 
+            return `C${songNum}_T${trackNum}.mid`;
+        };
+
+        // Carga una pista MIDI usando Tone.js
+        async function loadMidiTrack(songIndex, trackIndex) {
+            const path = getTrackPath(songIndex, trackIndex);
+            
+            // Usamos Tone.Part para manejar las notas. Tone.Part acepta un array de eventos.
+            try {
+                // Carga el archivo MIDI
+                const midi = await Midi.fromUrl(path);
+
+                // Asumimos que la pista a usar es la primera del archivo (índice 0)
+                const track = midi.tracks[0]; 
+
+                // Crea un instrumento (Synth) para esta pista
+                const synth = new Tone.Sampler({
+                    urls: {
+                        C4: "sampler/C4.mp3", // Asumiendo un path de sampler válido
+                    },
+                    onload: () => {
+                        // Instrumento cargado
+                    }
+                }).toDestination(); // Conecta directamente a la salida
+
+                // Crea un Tone.Part a partir de los eventos MIDI
+                const part = new Tone.Part((time, event) => {
+                    synth.triggerAttackRelease(event.note, event.duration, time, event.velocity);
+                }, track.notes).start(0);
+
+                // Configuración del loop
+                part.loop = true;
+                part.loopEnd = midi.duration; // La duración total del archivo MIDI
+
+                midiPlayers.push(part);
+                
+                midiLoadedCount++;
+                updateLoadingScreen();
+
+                return part; // Retorna el Tone.Part
+                
+            } catch (error) {
+                console.error(`Error al cargar la pista MIDI en ${path}:`, error);
+                // Si falla, empujar un objeto nulo o un Part vacío para mantener el conteo.
+                midiLoadedCount++;
+                updateLoadingScreen();
+                return null;
+            }
+        }
+
+        // Carga todas las pistas de la canción actual
+        async function loadCurrentSong(songIndex) {
+            
+            // Limpiar si ya había algo cargado
+            midiPlayers.forEach(p => p && p.dispose());
+            midiPlayers = [];
+            midiLoadedCount = 0;
+            totalTracksToLoad = 0;
+            
+            const song = songData[songIndex];
+            if (!song) return;
+
+            // Contar todas las pistas a cargar
+            totalTracksToLoad = song.tracks;
+
+            const loadingPromises = [];
+            for (let i = 0; i < song.tracks; i++) {
+                loadingPromises.push(loadMidiTrack(songIndex, i));
+            }
+
+            await Promise.all(loadingPromises);
+            
+            // Una vez cargadas, iniciar el motor de audio
+            if (Tone.Transport.state !== 'started') {
+                Tone.Transport.start();
+            }
+
+            // Actualizar la información del tempo (tomamos el de Tone.js)
+            currentTempo = Tone.Transport.bpm.value;
+            document.getElementById('currentTempo').textContent = `Tempo: ${currentTempo} BPM`;
+        }
+
+        // ==========================================================================================
         // LÓGICA DE TRIVIA
         // ==========================================================================================
         let triviaData = [
             {
-                question: "¿Cuál es el planeta más grande de nuestro sistema solar?",
+                question: "¿Qué género musical es el principal inspirador de esta 'Armonía de las Esferas'?",
                 options: [
-                    { text: "Saturno", correct: false },
-                    { text: "Júpiter", correct: true },
-                    { text: "Urano", correct: false },
-                    { text: "Tierra", correct: false }
+                    { text: "Jazz Fusión", correct: false },
+                    { text: "Salsa y Cumbia", correct: true },
+                    { text: "Música Electrónica", correct: false },
+                    { text: "Rock Progresivo", correct: false }
                 ]
             },
             {
-                question: "¿Qué planeta es conocido como 'el planeta rojo'?",
+                question: "¿Cuál de los siguientes instrumentos se asocia más con la pista musical activada por el cuerpo celeste 'Ritmo Medio'?",
                 options: [
-                    { text: "Venus", correct: false },
-                    { text: "Marte", correct: true },
-                    { text: "Mercurio", correct: false },
-                    { text: "Júpiter", correct: false }
+                    { text: "Violín", correct: false },
+                    { text: "Congas o Timbales", correct: true },
+                    { text: "Flauta", correct: false },
+                    { text: "Tuba", correct: false }
                 ]
             },
             {
-                question: "¿Qué cuerpo celeste es el centro de gravedad en la simulación?",
+                question: "¿Qué efecto visual en la órbita de un planeta modula el brillo (frecuencia de corte) de la pista musical?",
                 options: [
-                    { text: "El planeta más masivo", correct: false },
-                    { text: "El Sol (centro)", correct: true },
-                    { text: "El objeto más rápido", correct: false },
-                    { text: "La Tierra", correct: false }
+                    { text: "El tamaño del planeta", correct: false },
+                    { text: "La distancia del planeta al Sol", correct: true },
+                    { text: "El color del rastro", correct: false },
+                    { text: "La velocidad de rotación", correct: false }
                 ]
             }
         ];
@@ -291,7 +495,6 @@
         let isAnsweringTrivia = false;
 
         function startTrivia() {
-            // No se requiere verificar el audio, solo las órbitas
             if (orbitingBodies.length === 0) {
                 alert("¡Crea al menos una órbita para comenzar la trivia!");
                 return;
@@ -324,16 +527,21 @@
         }
 
         function checkAnswer(selectedOption, buttonElement) {
-            isAnsweringTrivia = false;
+            isAnsweringTrivia = false; // Bloquear más clics
             const optionsDiv = document.getElementById('triviaOptions');
             const nextButton = document.getElementById('nextQuestionButton');
             
+            // Deshabilitar todos los botones
             Array.from(optionsDiv.children).forEach(btn => btn.disabled = true);
 
+            // Resaltar la respuesta
             if (selectedOption.correct) {
                 buttonElement.classList.add('correct-answer', 'bg-green-500', 'hover:bg-green-500');
+                // Si es correcta, tal vez dar una pista visual o sonora.
+                console.log("¡Respuesta Correcta!");
             } else {
                 buttonElement.classList.add('wrong-answer', 'bg-red-500', 'hover:bg-red-500');
+                // Resaltar la correcta también
                 const correctAnswer = triviaData[currentQuestionIndex].options.find(opt => opt.correct);
                 const correctButton = Array.from(optionsDiv.children).find(btn => btn.textContent === correctAnswer.text);
                 if (correctButton) {
@@ -341,6 +549,7 @@
                 }
             }
 
+            // Mostrar el botón de Siguiente/Cerrar
             if (currentQuestionIndex < triviaData.length - 1) {
                 nextButton.textContent = "Siguiente Pregunta";
                 nextButton.onclick = () => {
@@ -366,41 +575,49 @@
         // ==========================================================================================
 
         function init() {
+            // 1. Scene
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x000000, 0.001);
+            scene.fog = new THREE.FogExp2(0x000000, 0.001); // Niebla para simular el espacio
 
+            // 2. Camera
             const aspect = window.innerWidth / window.innerHeight;
             camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
             camera.position.set(0, 100, 200);
 
+            // 3. Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('webgl-output').appendChild(renderer.domElement);
 
-            ambientLight = new THREE.AmbientLight(0x404040, 5); 
+            // 4. Lights
+            ambientLight = new THREE.AmbientLight(0x404040, 5); // Luz suave
             scene.add(ambientLight);
             directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-            directionalLight.position.set(50, 50, 50);
+            directionalLight.position.set(50, 50, 50); // Simula la luz solar
             scene.add(directionalLight);
 
+            // 5. Orbit Controls (Permite al usuario moverse)
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true; 
+            controls.enableDamping = true; // Efecto de inercia
             controls.dampingFactor = 0.05;
             controls.maxDistance = 500;
             controls.minDistance = 50;
 
+            // 6. El Sol (Cuerpo central de gravedad)
             const sunGeometry = new THREE.SphereGeometry(10, 32, 32);
             const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500 });
             const sun = new THREE.Mesh(sunGeometry, sunMaterial);
             sun.position.set(0, 0, 0);
             scene.add(sun);
             
+            // 7. Estrellas de fondo (Geometry instanciada para performance)
             const starGeometry = new THREE.BufferGeometry();
             const starCount = 10000;
             const positions = new Float32Array(starCount * 3);
             for (let i = 0; i < starCount; i++) {
-                const distance = 500 + Math.random() * 500;
+                // Distribuir estrellas en una esfera grande
+                const distance = 500 + Math.random() * 500; // 500 a 1000 unidades
                 const phi = Math.random() * Math.PI * 2;
                 const theta = Math.random() * Math.PI;
 
@@ -413,20 +630,23 @@
             const stars = new THREE.Points(starGeometry, starMaterial);
             scene.add(stars);
 
+            // 8. Raycaster y Event Listeners
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
 
             window.addEventListener('resize', onWindowResize, false);
             
+            // Escuchadores para la creación de órbita
             renderer.domElement.addEventListener('mousedown', onMouseDown, false);
             renderer.domElement.addEventListener('mousemove', onMouseMove, false);
             renderer.domElement.addEventListener('mouseup', onMouseUp, false);
             
+            // Inicializar botones de la interfaz
             setupEventListeners();
         }
 
         // ==========================================================================================
-        // MANEJO DE EVENTOS DE USUARIO Y DRAG & DROP
+        // MANEJO DE EVENTOS DE USUARIO
         // ==========================================================================================
 
         function onWindowResize() {
@@ -435,30 +655,37 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        // Convierte coordenadas de pantalla a un punto 3D en el plano XY (Z=0)
         function get3DMousePosition(event) {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+            // Proyectar el rayo sobre el plano Z=0 para obtener la posición de arrastre
+            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Plano XY
             const intersection = new THREE.Vector3();
             if (raycaster.ray.intersectPlane(plane, intersection)) {
                 return intersection;
             }
 
-            return null;
+            return null; // No hay intersección
         }
 
         let dragBodyType = null;
 
         document.querySelectorAll('.draggable-planet').forEach(element => {
             element.addEventListener('dragstart', (e) => {
+                // Iniciar el arrastre. Guardamos el tipo de cuerpo.
                 dragBodyType = element.getAttribute('data-type');
+                // Usamos un simple texto para el dataTransfer
                 e.dataTransfer.setData('text/plain', dragBodyType);
+                // Usar una imagen transparente como drag image para no tapar la simulación
                 const img = new Image();
                 img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                 e.dataTransfer.setDragImage(img, 0, 0);
 
+                // Ocultar el catálogo mientras se arrastra
                 document.getElementById('planetCatalog').style.opacity = 0.3;
             });
 
@@ -469,7 +696,7 @@
         });
 
         renderer.domElement.addEventListener('dragover', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Permite que el drop ocurra
         });
 
         renderer.domElement.addEventListener('drop', (e) => {
@@ -480,14 +707,17 @@
                 return;
             }
 
+            // Usamos el tipo de cuerpo que guardamos en dragstart
             const type = e.dataTransfer.getData('text/plain'); 
-            dragBodyType = type;
+            dragBodyType = type; // Asignamos el tipo para el mousedown
 
+            // Simular el inicio del arrastre (mousedown)
             const position = get3DMousePosition(e);
             if (position) {
                 isDragging = true;
                 initialClickPoint.copy(position);
                 
+                // Crear la línea de arrastre visual (roja, simulando el vector de velocidad)
                 const geometry = new THREE.BufferGeometry().setFromPoints([initialClickPoint, initialClickPoint]);
                 currentDragLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 }));
                 scene.add(currentDragLine);
@@ -496,7 +726,11 @@
 
 
         function onMouseDown(event) {
+            // El arrastre de planetas desde el catálogo ya está siendo manejado por 'drop'
+            // Solo procesamos el mousedown si venimos de un 'drop' (dragBodyType != null)
             if (!dragBodyType) return;
+            
+            // Ya se maneja en el evento 'drop'
         }
 
         function onMouseMove(event) {
@@ -504,6 +738,7 @@
 
             const currentPoint = get3DMousePosition(event);
             if (currentPoint && currentDragLine) {
+                // Actualizar la línea para mostrar el vector de velocidad
                 const positions = currentDragLine.geometry.attributes.position.array;
                 positions[3] = currentPoint.x;
                 positions[4] = currentPoint.y;
@@ -516,15 +751,19 @@
             if (!isDragging || !dragBodyType) return;
 
             isDragging = false;
-            controls.enabled = true;
+            controls.enabled = true; // Reactivar controles
             
             const releasePoint = get3DMousePosition(event);
 
             if (releasePoint && currentDragLine) {
-                const initialVelocity = releasePoint.clone().sub(initialClickPoint).multiplyScalar(0.5); 
+                // El vector de velocidad es la diferencia entre el punto de liberación y el inicial
+                const initialVelocity = releasePoint.clone().sub(initialClickPoint).multiplyScalar(0.5); // Factor de escala
+
+                // La posición inicial del cuerpo es el punto inicial del arrastre
                 createCelestialBody(initialClickPoint, initialVelocity, dragBodyType);
             }
 
+            // Limpieza del arrastre visual
             if (currentDragLine) {
                 scene.remove(currentDragLine);
                 currentDragLine.geometry.dispose();
@@ -532,7 +771,7 @@
                 currentDragLine = null;
             }
 
-            dragBodyType = null;
+            dragBodyType = null; // Resetear el tipo de cuerpo después de la creación
         }
 
         // ==========================================================================================
@@ -540,50 +779,74 @@
         // ==========================================================================================
 
         function createCelestialBody(position, velocity, type) {
-            let bodyMass, color, size;
+            // Parámetros basados en el tipo
+            let bodyMass, color, size, trackIndex;
 
             switch(type) {
                 case 'slow-low':
                     bodyMass = 10;
-                    color = 0xff0000;
+                    color = 0xff0000; // Rojo
                     size = 5;
+                    trackIndex = typeToTrackIndex[type];
                     break;
                 case 'medium-rhythm':
                     bodyMass = 5;
-                    color = 0xffff00;
+                    color = 0xffff00; // Amarillo
                     size = 3;
+                    trackIndex = typeToTrackIndex[type];
                     break;
                 case 'fast-high':
                     bodyMass = 2;
-                    color = 0x0000ff;
+                    color = 0x0000ff; // Azul
                     size = 2;
+                    trackIndex = typeToTrackIndex[type];
                     break;
                 default:
-                    return;
+                    return; // No crear si el tipo es desconocido
             }
             
+            // 1. Crear la Malla (Mesh)
             const geometry = new THREE.SphereGeometry(size, 16, 16);
             const material = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geometry, material);
 
+            // 2. Crear el Objeto de Simulación
             const body = new CelestialBody(bodyMass, type, mesh, position, velocity, new THREE.Color(color));
             
+            // 3. Iniciar la Música
+            const midiTrack = midiPlayers[trackIndex];
+            if (midiTrack) {
+                body.startMidiTrack(midiTrack);
+                
+                // Asegurarse de que el track que se activa no esté muteado, si la lógica de mute/unmute se implementa.
+                midiTrack.mute = false;
+            } else {
+                console.warn(`No se encontró la pista MIDI para el tipo: ${type} en el índice: ${trackIndex}`);
+            }
+
+            // 4. Agregar a la escena y a la lista
             scene.add(mesh);
             orbitingBodies.push(body);
             
+            // Si es el primer cuerpo, se activa la simulación.
             if (orbitingBodies.length === 1 && !isSimulationRunning) {
                 startSimulation();
             }
 
+            // Actualizar información del catálogo (si aplica)
             updateCatalogDisplay();
         }
 
         function updateCatalogDisplay() {
+            // Lógica para deshabilitar o cambiar la apariencia de los planetas ya usados
+            // Esto es importante si solo queremos que un tipo de pista se use una vez.
+            
             const usedTypes = new Set(orbitingBodies.map(b => b.type));
             
             document.querySelectorAll('.draggable-planet').forEach(element => {
                 const type = element.getAttribute('data-type');
                 if (usedTypes.has(type)) {
+                    // Si ya se usó, se hace menos visible y no arrastrable
                     element.classList.add('opacity-50', 'cursor-not-allowed');
                     element.setAttribute('draggable', 'false');
                 } else {
@@ -594,12 +857,20 @@
         }
 
         function clearSimulation() {
+            // Detener la música y la simulación
             stopSimulation(); 
             
+            // Limpiar los cuerpos celestes
             orbitingBodies.forEach(body => body.dispose());
             orbitingBodies = [];
+
+            // Reiniciar el buffer MIDI (detener todos los Tone.Part)
+            midiPlayers.forEach(p => p && p.stop());
             
+            // Resetear el catálogo
             updateCatalogDisplay();
+            
+            // Opcional: reiniciar cámara a la posición inicial
             controls.reset();
         }
 
@@ -613,18 +884,26 @@
 
             animationFrameId = requestAnimationFrame(animate);
 
-            const deltaTime = TIME_STEP;
+            const deltaTime = TIME_STEP; // Usamos un paso de tiempo fijo
 
+            // 1. Actualizar la física de cada cuerpo
             orbitingBodies.forEach(body => {
                 body.update(deltaTime);
             });
 
+            // 2. Actualizar controles y renderizar
             controls.update();
             renderer.render(scene, camera);
         }
 
         function startSimulation() {
             if (isSimulationRunning) return;
+
+            // Iniciar el Transport de Tone.js si no lo está
+            if (Tone.Transport.state !== 'started') {
+                Tone.start(); // Iniciar el contexto de audio
+                Tone.Transport.start();
+            }
 
             isSimulationRunning = true;
             animate();
@@ -641,19 +920,52 @@
 
 
         // ==========================================================================================
+        // LÓGICA DE PANTALLA DE CARGA
+        // ==========================================================================================
+
+        function updateLoadingScreen() {
+            const loadingBar = document.getElementById('loadingBar');
+            const startButton = document.getElementById('startButton');
+            
+            // Cargar Three.js y Tone.js es casi instantáneo, la carga MIDI es lo lento
+            let progress = 0;
+            if (totalTracksToLoad > 0) {
+                progress = (midiLoadedCount / totalTracksToLoad) * 100;
+            } else {
+                // Caso inicial, aún no se ha llamado a loadCurrentSong
+                progress = 10; 
+            }
+
+            loadingBar.style.width = `${progress}%`;
+
+            if (progress >= 100) {
+                // Asegurarse de que Tone.js se ha inicializado
+                Tone.loaded().then(() => {
+                    // Mostrar botón de inicio
+                    startButton.classList.remove('hidden');
+                    loadingBar.classList.add('hidden');
+                });
+            }
+        }
+
+        function hideLoadingScreen() {
+            document.getElementById('loadingScreen').classList.add('opacity-0');
+            // Quitar el overlay después de la transición para permitir interacción
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hidden');
+                document.getElementById('mainInterface').classList.remove('hidden');
+            }, 500); // Coincide con la duración de la transición
+        }
+        
+        // ==========================================================================================
         // CONFIGURACIÓN DE EVENTOS DE BOTONES
         // ==========================================================================================
         
         function setupEventListeners() {
             
-            // Botón de Inicio (Reemplaza a la pantalla de carga MIDI)
+            // Botón de la Pantalla de Carga
             document.getElementById('startButton').addEventListener('click', () => {
-                document.getElementById('loadingScreen').classList.add('opacity-0');
-                setTimeout(() => {
-                    document.getElementById('loadingScreen').classList.add('hidden');
-                    document.getElementById('mainInterface').classList.remove('hidden');
-                }, 500); 
-                // La simulación se iniciará al arrastrar el primer cuerpo.
+                hideLoadingScreen();
             });
             
             // Botón de Bienvenida (Armonía)
@@ -679,9 +991,22 @@
         // INICIO DEL PROGRAMA
         // ==========================================================================================
         
-        document.addEventListener('DOMContentLoaded', () => {
-            init();
+        init(); // Inicializar Three.js y la escena
+        
+        // Iniciar la carga de la primera canción y sus pistas MIDI
+        loadCurrentSong(currentSongIndex).then(() => {
+            // El inicio real de la simulación ocurrirá después de que el usuario haga click
+            // en 'Iniciar Simulación' y luego cree su primera órbita.
+            console.log("Carga de MIDI finalizada.");
+            
+            // Actualizar info de la canción
+            document.getElementById('currentTrackInfo').textContent = songData[currentSongIndex].name;
+            
+            // Mostrar la información del catálogo
+            updateCatalogDisplay();
         });
+
+
     </script>
 </body>
 </html>
