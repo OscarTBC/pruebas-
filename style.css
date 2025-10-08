@@ -1,0 +1,8 @@
+body {
+    margin: 0;
+    overflow: hidden; /* Evita las barras de desplazamiento */
+    background-color: #000000; /* Fondo negro puro */
+}
+canvas {
+    display: block;
+}
