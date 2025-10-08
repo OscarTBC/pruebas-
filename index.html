@@ -254,18 +254,18 @@
         async function loadMidiFiles() {
             // 1. Crear un sintetizador mejorado con envolvente más larga y sonido más rico
             globalSynth = new Tone.PolySynth(Tone.Synth, {
-                // Usamos un oscilador 'fatsaw' para un sonido más potente
+                // CORRECCIÓN SINTAXIS: Usamos 'sawtooth' para el PolySynth con efecto Fat.
                 oscillator: { 
-                    type: "fatsaw", 
+                    type: "sawtooth", // Corregido de 'fatsaw' a 'sawtooth'
                     count: 3, 
                     spread: 30 
                 },
-                // 🚀 Envolvente Extendida: Estos valores aseguran que las notas largas NO se corten
+                // 🚨 Envolvente Extendida: 8 segundos de liberación
                 envelope: { 
                     attack: 0.05, 
-                    decay: 1.5,     // 1.5 segundos de decay
+                    decay: 1.5,     
                     sustain: 0.9,   
-                    release: 8      // 🚨 8 SEGUNDOS de liberación
+                    release: 8      
                 },
                 volume: -5 
             }).toDestination();
@@ -304,7 +304,7 @@
                                 }, track.notes).start(0); 
                                 
                                 part.loop = true;
-                                part.mute = true; // Empiezan MUTEADOS
+                                part.mute = true; 
                                 
                                 SONG_TONE_PARTS[songKey][trackName] = part;
                             })
