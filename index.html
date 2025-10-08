@@ -3,43 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Armonía de las Esferas: Simulación de Órbitas y Trivia (Móvil)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Configuración de Tailwind para incluir colores personalizados (Restaurado)
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'space-dark': '#0d0d1a',
-                        'space-blue': '#1a202c',
-                        'brand-orange': '#f75b0f', 
-                        'trivia-teal': '#00c7b5',
-                    },
-                    keyframes: {
-                        fadeInUp: {
-                            '0%': { opacity: '0', transform: 'translateY(10px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        }
-                    },
-                    animation: {
-                        fadeInUp: 'fadeInUp 0.5s ease-out forwards',
-                    }
-                }
-            }
-        }
-    </script>
+    <title>Armonía de las Esferas: Simulación de Órbitas y Trivia</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <style>
-        /* Estilos base ajustados para usar los colores de Tailwind */
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #0d0d1a; /* space-dark */
-            color: white; 
-        }
+        body { margin: 0; overflow: hidden; background-color: #000; }
         #webgl-output { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         .interactive-overlay { pointer-events: auto; }
@@ -47,15 +17,7 @@
         .hover-scale:hover { transform: scale(1.05); }
 
         /* Estilos específicos para la interfaz */
-        .sidebar { 
-            background-color: rgba(26, 32, 44, 0.9); /* space-blue con opacidad */
-            backdrop-filter: blur(5px); 
-            width: 10rem;
-            right: 0.5rem; 
-            top: 5rem;
-            max-height: calc(100% - 6rem);
-            transition: transform 0.3s ease-out;
-        }
+        .sidebar { background-color: rgba(17, 24, 39, 0.9); backdrop-filter: blur(5px); }
         .modal { background-color: rgba(0, 0, 0, 0.9); backdrop-filter: blur(5px); }
         .draggable-planet { cursor: grab; }
 
@@ -63,34 +25,7 @@
         .correct-answer { border: 2px solid #10b981; }
         .wrong-answer { border: 2px solid #ef4444; }
 
-        /* Tooltip para información del planeta - Fijo en la parte inferior para mejor uso en móvil */
-        #infoTooltip {
-            position: fixed;
-            bottom: 0; 
-            left: 0;
-            right: 0;
-            background-color: #f75b0f; /* brand-orange */
-            color: white;
-            padding: 12px;
-            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
-            pointer-events: none;
-            z-index: 20;
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-            transform: translateY(100%);
-        }
-        #infoTooltip.active {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* Ajustes de control para pantallas pequeñas */
-        #actionButtons {
-            position: fixed;
-            top: 0.5rem;
-            left: 0.5rem;
-        }
-
+        /* Personalización del scrollbar para la inmersión */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
@@ -99,69 +34,77 @@
 </head>
 <body>
     <div id="webgl-output"></div>
-    
-    <div id="infoTooltip" class="text-sm">
-        <button id="closeTooltip" class="absolute top-1 right-3 text-xl font-bold text-white pointer-events-auto">×</button>
-        <div id="tooltipContent"></div>
-    </div>
 
-    <div id="loadingScreen" class="overlay flex flex-col items-center justify-center bg-space-dark transition-opacity duration-500 z-50 interactive-overlay">
+    <div id="loadingScreen" class="overlay flex flex-col items-center justify-center bg-black transition-opacity duration-500 z-50 interactive-overlay">
         <h1 class="text-4xl md:text-6xl text-white mb-8 font-extrabold">ARMÓNIA DE LAS ESFERAS</h1>
-        <button id="startButton" class="px-8 py-4 bg-brand-orange text-white text-xl font-bold rounded-lg hover:bg-orange-700 transition duration-300 transform hover-scale">
+        <button id="startButton" class="px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
             Iniciar Simulación
         </button>
     </div>
 
     <div id="mainInterface" class="overlay interactive-overlay p-4 hidden">
 
-        <div id="actionButtons" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-            <button id="clearButton" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-1">
-                Reiniciar Sim.
-            </button>
-            
-            <button id="triviaButton" class="px-4 py-2 bg-trivia-teal text-white rounded-lg hover:bg-teal-600 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-4">
-                Trivia
-            </button>
+        <div class="flex justify-between items-start mb-4">
+            <div id="actionButtons" class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                
+                <button id="clearButton" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-1">
+                    Reiniciar Simulación
+                </button>
+                
+                <button id="triviaButton" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 transform hover-scale text-sm sm:text-base sm:order-4">
+                    Iniciar Trivia
+                </button>
+            </div>
         </div>
-        
-        <div id="planetCatalog" class="sidebar p-4 rounded-xl shadow-2xl absolute max-h-4/5 overflow-y-auto interactive-overlay pt-4">
-            <h2 class="text-xl font-bold text-white mb-2">CATÁLOGO</h2>
-            <p class="text-xs text-gray-400 mt-4">Arrastra órbita.</p> 
+
+        <div id="planetCatalog" class="sidebar p-4 rounded-xl shadow-2xl w-full max-w-xs absolute right-4 top-16 max-h-4/5 overflow-y-auto interactive-overlay pt-4">
+            <h2 class="text-xl font-bold text-white mb-2">CATÁLOGO DE CUERPOS CELESTES</h2>
+            <p class="text-lg text-gray-400 mt-4">Arrastra para crear órbita.</p> 
 
             <hr class="my-4 border-gray-700">
 
             <div id="celestialBodiesList" class="space-y-4">
                 
-                <div id="body-slow-low" class="draggable-planet bg-gray-700 p-2 rounded-lg flex flex-col items-center text-center shadow-md hover:bg-gray-600 hover-scale" data-type="slow-low">
-                    <div class="w-6 h-6 rounded-full bg-red-500 mb-1"></div>
-                    <p class="text-white text-xs font-semibold">Tipo I (Rojo)</p>
-                    <p class="text-xs text-gray-400">Masa Alta</p>
+                <div id="body-slow-low" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="slow-low">
+                    <div class="w-8 h-8 rounded-full bg-red-500 mr-3"></div>
+                    <div>
+                        <p class="text-white font-semibold">Cuerpo Tipo I (Rojo)</p>
+                        <p class="text-sm text-gray-400">Gran Masa/Baja Velocidad</p>
+                    </div>
                 </div>
 
-                <div id="body-medium-rhythm" class="draggable-planet bg-gray-700 p-2 rounded-lg flex flex-col items-center text-center shadow-md hover:bg-gray-600 hover-scale" data-type="medium-rhythm">
-                    <div class="w-6 h-6 rounded-full bg-yellow-500 mb-1"></div>
-                    <p class="text-white text-xs font-semibold">Tipo II (Amarillo)</p>
-                    <p class="text-xs text-gray-400">Masa Media</p>
+                <div id="body-medium-rhythm" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="medium-rhythm">
+                    <div class="w-8 h-8 rounded-full bg-yellow-500 mr-3"></div>
+                    <div>
+                        <p class="text-white font-semibold">Cuerpo Tipo II (Amarillo)</p>
+                        <p class="text-sm text-gray-400">Masa Media/Velocidad Estándar</p>
+                    </div>
                 </div>
 
-                <div id="body-fast-high" class="draggable-planet bg-gray-700 p-2 rounded-lg flex flex-col items-center text-center shadow-md hover:bg-gray-600 hover-scale" data-type="fast-high">
-                    <div class="w-6 h-6 rounded-full bg-blue-500 mb-1"></div>
-                    <p class="text-white text-xs font-semibold">Tipo III (Azul)</p>
-                    <p class="text-xs text-gray-400">Masa Baja</p>
+                <div id="body-fast-high" class="draggable-planet bg-gray-700 p-3 rounded-lg flex items-center shadow-md hover:bg-gray-600 hover-scale" data-type="fast-high">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 mr-3"></div>
+                    <div>
+                        <p class="text-white font-semibold">Cuerpo Tipo III (Azul)</p>
+                        <p class="text-sm text-gray-400">Poca Masa/Alta Velocidad</p>
+                    </div>
                 </div>
             </div>
+
             <hr class="my-4 border-gray-700">
+
+            <p class="text-sm text-gray-500">Arrastra para generar órbita.</p>
+
         </div>
 
         <div id="triviaModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
             <div class="bg-gray-900 p-8 rounded-xl shadow-2xl max-w-lg w-full text-white interactive-overlay">
-                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-trivia-teal">Trivia del Sistema Solar</h2>
+                <h2 id="triviaTitle" class="text-2xl font-bold mb-4 text-green-400">Trivia del Sistema Solar</h2>
                 <div id="triviaContent">
                     <p id="triviaQuestion" class="text-lg mb-6"></p>
                     <div id="triviaOptions" class="space-y-4">
                         </div>
                 </div>
-                <button id="nextQuestionButton" class="mt-6 px-6 py-2 bg-trivia-teal text-white rounded-lg hover:bg-teal-600 transition duration-300 transform hover-scale hidden">
+                <button id="nextQuestionButton" class="mt-6 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale hidden">
                     Siguiente Pregunta
                 </button>
                 <button id="closeTriviaButton" class="mt-6 px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300 transform hover-scale">
@@ -173,12 +116,12 @@
         <div id="welcomeModal" class="modal fixed inset-0 flex items-center justify-center p-4">
             <div class="bg-gray-900 p-10 rounded-xl shadow-2xl max-w-xl w-full text-white text-center interactive-overlay">
                 <img src="./armonia-orbital.png" alt="Símbolo de Armonía Orbital" class="w-24 h-auto mx-auto mb-6">
-                <h2 class="text-3xl font-bold mb-4 text-brand-orange">Armonía de las Esferas</h2>
+                <h2 class="text-3xl font-bold mb-4 text-green-400">Armonía de las Esferas</h2>
                 <p class="text-lg mb-6 text-gray-300">
                     Arrastra los cuerpos celestes desde el catálogo lateral para crear órbitas. 
                     Experimenta la física gravitacional en un entorno 3D.
                 </p>
-                <button id="closeWelcomeButton" class="px-8 py-3 bg-brand-orange text-white text-lg font-bold rounded-lg hover:bg-orange-700 transition duration-300 transform hover-scale">
+                <button id="closeWelcomeButton" class="px-8 py-3 bg-green-500 text-white text-lg font-bold rounded-lg hover:bg-green-600 transition duration-300 transform hover-scale">
                     ¡Comenzar!
                 </button>
             </div>
@@ -195,12 +138,10 @@
         let raycaster, mouse;
 
         const SUN_MASS = 1000;
-        const G = 0.01;
-        const SCALE_FACTOR = 0.5;
-        const TIME_STEP = 0.1;
-        const MAX_ORBITS = 8;
-        const INFO_TOOLTIP = document.getElementById('infoTooltip'); 
-        const TOOLTIP_CONTENT = document.getElementById('tooltipContent');
+        const G = 0.01; // Constante de gravedad ajustada para simulación visual
+        const SCALE_FACTOR = 0.5; // Ajuste general de velocidad
+        const TIME_STEP = 0.1; // Delta de tiempo para la física
+        const MAX_ORBITS = 8; // Límite de planetas que se pueden crear
 
         let orbitingBodies = [];
         let isDragging = false;
@@ -208,16 +149,15 @@
         let currentDragLine = null;
         let isSimulationRunning = false;
         let animationFrameId = null;
-        let lastIntersectedObject = null;
 
-        // Estructura de un cuerpo celeste
+        // Estructura de un cuerpo celeste (sin ninguna referencia a Tone.js)
         class CelestialBody {
-            constructor(mass, type, mesh, position, initialVelocity, color, info) {
+            constructor(mass, type, mesh, position, initialVelocity, color) {
                 this.mass = mass;
                 this.type = type;
                 this.mesh = mesh;
                 this.mesh.position.copy(position);
-                this.velocity = initialVelocity;
+                this.velocity = initialVelocity; // Vector3
                 this.color = color;
                 this.trail = null;
                 this.trailGeometry = null;
@@ -226,11 +166,11 @@
                 this.trailIndex = 0;
                 this.orbitPositions = new Array(this.trailLength).fill(new THREE.Vector3()); 
                 this.isOrbiting = true;
-                this.info = info; 
 
                 this.initTrail();
             }
 
+            // Inicializa el rastro de órbita
             initTrail() {
                 this.trailGeometry = new THREE.BufferGeometry();
                 const positions = new Float32Array(this.trailLength * 3); 
@@ -242,9 +182,11 @@
                 scene.add(this.trail);
             }
 
+            // Actualiza la posición y el rastro del cuerpo
             update(deltaTime) {
                 if (!this.isOrbiting) return;
 
+                // 1. Calcular la fuerza gravitacional (hacia el centro 0,0,0)
                 const position = this.mesh.position;
                 const distanceSq = position.lengthSq();
                 const distance = Math.sqrt(distanceSq);
@@ -258,9 +200,11 @@
                 const direction = position.clone().negate().normalize();
                 const acceleration = direction.multiplyScalar(forceMagnitude / this.mass);
 
+                // 2. Integración de Euler/Verlet (Actualizar velocidad y posición)
                 this.velocity.add(acceleration.multiplyScalar(deltaTime));
                 this.mesh.position.add(this.velocity.clone().multiplyScalar(deltaTime * SCALE_FACTOR));
 
+                // 3. Actualizar el rastro (Buffer Circular)
                 this.updateTrail();
             }
 
@@ -275,7 +219,7 @@
 
                 if (this.trailIndex === 0) {
                     for (let i = 0; i < this.trailLength; i++) {
-                        const currentIdx = i;
+                        const currentIdx = i; // Siempre desde el inicio 0
 
                         positionsArray[i * 3 + 0] = this.orbitPositions[currentIdx].x;
                         positionsArray[i * 3 + 1] = this.orbitPositions[currentIdx].y;
@@ -299,6 +243,7 @@
                 this.trailGeometry.setDrawRange(0, this.trailIndex === 0 ? this.trailLength : this.trailIndex);
             }
 
+            // Limpieza (sin referencias a Tone.js)
             dispose() {
                 scene.remove(this.mesh);
                 this.mesh.geometry.dispose();
@@ -346,11 +291,11 @@
         let isAnsweringTrivia = false;
 
         function startTrivia() {
+            // No se requiere verificar el audio, solo las órbitas
             if (orbitingBodies.length === 0) {
                 alert("¡Crea al menos una órbita para comenzar la trivia!");
                 return;
             }
-            hideTooltip();
 
             isAnsweringTrivia = true;
             currentQuestionIndex = 0;
@@ -360,6 +305,7 @@
 
         function displayQuestion(index) {
             const question = triviaData[index];
+            const contentDiv = document.getElementById('triviaContent');
             const optionsDiv = document.getElementById('triviaOptions');
             const nextButton = document.getElementById('nextQuestionButton');
 
@@ -443,13 +389,6 @@
             controls.dampingFactor = 0.05;
             controls.maxDistance = 500;
             controls.minDistance = 50;
-            
-            // Habilitar controles táctiles
-            controls.touches = {
-                ONE: THREE.TOUCH.ROTATE,
-                TWO: THREE.TOUCH.DOLLY_PAN 
-            };
-
 
             const sunGeometry = new THREE.SphereGeometry(10, 32, 32);
             const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500 });
@@ -479,153 +418,38 @@
 
             window.addEventListener('resize', onWindowResize, false);
             
-            // Eventos de ratón y táctiles para arrastre de órbita
-            renderer.domElement.addEventListener('mousedown', onPointerDown, false);
-            renderer.domElement.addEventListener('touchstart', onPointerDown, false);
-
-            renderer.domElement.addEventListener('mousemove', onPointerMove, false);
-            renderer.domElement.addEventListener('touchmove', onPointerMove, false);
-
-            renderer.domElement.addEventListener('mouseup', onPointerUp, false);
-            renderer.domElement.addEventListener('touchend', onPointerUp, false);
-            
-            // EVENTO PRINCIPAL DE INTERACCIÓN (Tap para información)
-            renderer.domElement.addEventListener('click', onPlanetTap, false);
+            renderer.domElement.addEventListener('mousedown', onMouseDown, false);
+            renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+            renderer.domElement.addEventListener('mouseup', onMouseUp, false);
             
             setupEventListeners();
         }
 
         // ==========================================================================================
-        // LÓGICA DE TOOLTIP TÁCTIL (Tap/Click)
+        // MANEJO DE EVENTOS DE USUARIO Y DRAG & DROP
         // ==========================================================================================
 
-        function showTooltip(bodyData) {
-            const content = `
-                <p class="font-bold text-base mb-1">${bodyData.info.name}</p>
-                <p><strong>Masa:</strong> ${bodyData.info.mass.toFixed(1)} Unidades</p>
-                <p><strong>Radio:</strong> ${bodyData.info.size.toFixed(1)}</p>
-                <p><strong>Velocidad:</strong> ${bodyData.velocity.length().toFixed(2)}</p>
-            `;
-            TOOLTIP_CONTENT.innerHTML = content;
-            INFO_TOOLTIP.classList.add('active');
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function hideTooltip() {
-            INFO_TOOLTIP.classList.remove('active');
-            lastIntersectedObject = null;
-        }
-
-        function onPlanetTap(event) {
-            if (isDragging || document.getElementById('welcomeModal').classList.contains('active')) return; 
-
-            const clientX = event.clientX || (event.touches ? event.touches[0].clientX : undefined);
-            const clientY = event.clientY || (event.touches ? event.touches[0].clientY : undefined);
-
-            if (clientX === undefined || clientY === undefined) return;
-
-            mouse.x = (clientX / window.innerWidth) * 2 - 1;
-            mouse.y = - (clientY / window.innerHeight) * 2 + 1;
-
+        function get3DMousePosition(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            
             raycaster.setFromCamera(mouse, camera);
-            const interactableObjects = orbitingBodies.map(body => body.mesh);
-            const intersects = raycaster.intersectObjects(interactableObjects, false);
-
-            if (intersects.length > 0) {
-                controls.enabled = false;
-                const intersectedMesh = intersects[0].object;
-                
-                if (intersectedMesh === lastIntersectedObject) {
-                    hideTooltip();
-                    controls.enabled = true;
-                } else {
-                    lastIntersectedObject = intersectedMesh;
-                    const bodyData = orbitingBodies.find(body => body.mesh === intersectedMesh);
-                    if (bodyData) {
-                        showTooltip(bodyData);
-                    }
-                }
-            } else {
-                if (INFO_TOOLTIP.classList.contains('active')) {
-                    hideTooltip();
-                }
-                controls.enabled = true;
+            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            const intersection = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(plane, intersection)) {
+                return intersection;
             }
+
+            return null;
         }
 
-
-        // ==========================================================================================
-        // MANEJO DE EVENTOS DE USUARIO Y DRAG & DROP (TÁCTIL Y RATÓN)
-        // ==========================================================================================
-
-        function getClientCoords(event) {
-            if (event.touches && event.touches.length) {
-                return { x: event.touches[0].clientX, y: event.touches[0].clientY };
-            }
-            return { x: event.clientX, y: event.clientY };
-        }
-
-        function onPointerDown(event) {
-            const coords = getClientCoords(event);
-            
-            if (event.target.closest('#planetCatalog') || event.target.closest('#actionButtons') || event.target.closest('#infoTooltip')) return;
-
-            if (!dragBodyType) return;
-            
-            if (event.cancelable) event.preventDefault(); 
-
-            isDragging = true;
-            
-            const position = get3DMousePosition(event);
-            if (position) {
-                initialClickPoint.copy(position);
-                
-                const geometry = new THREE.BufferGeometry().setFromPoints([initialClickPoint, initialClickPoint]);
-                currentDragLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 }));
-                scene.add(currentDragLine);
-
-                controls.enabled = false;
-            }
-        }
-
-        function onPointerMove(event) {
-            if (!isDragging || !dragBodyType) return;
-            
-            if (event.cancelable) event.preventDefault(); 
-
-            const currentPoint = get3DMousePosition(event);
-            if (currentPoint && currentDragLine) {
-                const positions = currentDragLine.geometry.attributes.position.array;
-                positions[3] = currentPoint.x;
-                positions[4] = currentPoint.y;
-                positions[5] = currentPoint.z;
-                currentDragLine.geometry.attributes.position.needsUpdate = true;
-            }
-        }
-
-        function onPointerUp(event) {
-            if (!isDragging || !dragBodyType) return;
-
-            isDragging = false;
-            controls.enabled = true;
-            
-            const releasePoint = get3DMousePosition(event);
-
-            if (releasePoint && currentDragLine) {
-                const initialVelocity = releasePoint.clone().sub(initialClickPoint).multiplyScalar(0.5); 
-                createCelestialBody(initialClickPoint, initialVelocity, dragBodyType);
-            }
-
-            if (currentDragLine) {
-                scene.remove(currentDragLine);
-                currentDragLine.geometry.dispose();
-                currentDragLine.material.dispose();
-                currentDragLine = null;
-            }
-
-            dragBodyType = null;
-        }
-
-        let dragBodyTypeFromCatalog = null;
+        let dragBodyType = null;
 
         document.querySelectorAll('.draggable-planet').forEach(element => {
             element.addEventListener('dragstart', (e) => {
@@ -656,41 +480,83 @@
                 return;
             }
 
-            dragBodyType = e.dataTransfer.getData('text/plain');
+            const type = e.dataTransfer.getData('text/plain'); 
+            dragBodyType = type;
 
             const position = get3DMousePosition(e);
             if (position) {
                 isDragging = true;
                 initialClickPoint.copy(position);
+                
+                const geometry = new THREE.BufferGeometry().setFromPoints([initialClickPoint, initialClickPoint]);
+                currentDragLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 }));
+                scene.add(currentDragLine);
             }
         });
 
+
+        function onMouseDown(event) {
+            if (!dragBodyType) return;
+        }
+
+        function onMouseMove(event) {
+            if (!isDragging) return;
+
+            const currentPoint = get3DMousePosition(event);
+            if (currentPoint && currentDragLine) {
+                const positions = currentDragLine.geometry.attributes.position.array;
+                positions[3] = currentPoint.x;
+                positions[4] = currentPoint.y;
+                positions[5] = currentPoint.z;
+                currentDragLine.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+
+        function onMouseUp(event) {
+            if (!isDragging || !dragBodyType) return;
+
+            isDragging = false;
+            controls.enabled = true;
+            
+            const releasePoint = get3DMousePosition(event);
+
+            if (releasePoint && currentDragLine) {
+                const initialVelocity = releasePoint.clone().sub(initialClickPoint).multiplyScalar(0.5); 
+                createCelestialBody(initialClickPoint, initialVelocity, dragBodyType);
+            }
+
+            if (currentDragLine) {
+                scene.remove(currentDragLine);
+                currentDragLine.geometry.dispose();
+                currentDragLine.material.dispose();
+                currentDragLine = null;
+            }
+
+            dragBodyType = null;
+        }
 
         // ==========================================================================================
         // LÓGICA DE CREACIÓN DE CUERPOS CELESTES
         // ==========================================================================================
 
         function createCelestialBody(position, velocity, type) {
-            let bodyMass, color, size, name;
+            let bodyMass, color, size;
 
             switch(type) {
                 case 'slow-low':
                     bodyMass = 10;
                     color = 0xff0000;
                     size = 5;
-                    name = "Gran Gigante (Rojo)";
                     break;
                 case 'medium-rhythm':
                     bodyMass = 5;
                     color = 0xffff00;
                     size = 3;
-                    name = "Cuerpo Mediano (Amarillo)";
                     break;
                 case 'fast-high':
                     bodyMass = 2;
                     color = 0x0000ff;
                     size = 2;
-                    name = "Pequeño Rápido (Azul)";
                     break;
                 default:
                     return;
@@ -700,9 +566,7 @@
             const material = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geometry, material);
 
-            const info = { name, mass: bodyMass, size };
-            
-            const body = new CelestialBody(bodyMass, type, mesh, position, velocity, new THREE.Color(color), info);
+            const body = new CelestialBody(bodyMass, type, mesh, position, velocity, new THREE.Color(color));
             
             scene.add(mesh);
             orbitingBodies.push(body);
@@ -734,8 +598,6 @@
             
             orbitingBodies.forEach(body => body.dispose());
             orbitingBodies = [];
-            
-            hideTooltip();
             
             updateCatalogDisplay();
             controls.reset();
@@ -784,30 +646,33 @@
         
         function setupEventListeners() {
             
-            // CORRECCIÓN: Event Listener para el botón de inicio (ahora vinculado correctamente)
+            // Botón de Inicio (Reemplaza a la pantalla de carga MIDI)
             document.getElementById('startButton').addEventListener('click', () => {
                 document.getElementById('loadingScreen').classList.add('opacity-0');
                 setTimeout(() => {
                     document.getElementById('loadingScreen').classList.add('hidden');
                     document.getElementById('mainInterface').classList.remove('hidden');
                 }, 500); 
+                // La simulación se iniciará al arrastrar el primer cuerpo.
             });
             
+            // Botón de Bienvenida (Armonía)
             document.getElementById('closeWelcomeButton').addEventListener('click', () => {
                 document.getElementById('welcomeModal').classList.add('hidden');
             });
             
+            // Botón de Reiniciar Simulación
             document.getElementById('clearButton').addEventListener('click', () => {
                 if (confirm('¿Estás seguro de que quieres reiniciar la simulación y eliminar todas las órbitas?')) {
                     clearSimulation();
                 }
             });
 
+            // Botón de Iniciar Trivia
             document.getElementById('triviaButton').addEventListener('click', startTrivia);
 
+            // Botón de Cerrar/Siguiente Trivia (se actualiza dinámicamente)
             document.getElementById('closeTriviaButton').addEventListener('click', closeTrivia);
-            
-            document.getElementById('closeTooltip').addEventListener('click', hideTooltip);
         }
 
         // ==========================================================================================
