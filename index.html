@@ -185,44 +185,28 @@
         const SUN_MASS = 1000.0; 
         const PLANET_MASS = 1.0; 
         const TIME_STEP = 0.05; 
-        const MIN_DISTANCE = 25;
-        const MAX_DISTANCE = 150;
+        const MAX_EXPULSION_DISTANCE = 1000;
         const COLLISION_DISTANCE = 18; 
         const MAX_SUN_DISTANCE = 100; 
-        
-        // NUEVO: Límite de expulsión más amplio para evitar pérdidas rápidas
-        const MAX_EXPULSION_DISTANCE = 1000;
-        
-        // Aumentamos la longitud del rastro a 100 puntos (antes 50)
         const TRAIL_LENGTH = 100; 
-        
-        // NUEVA VARIABLE DE ESTADO
         let isPaused = false;
         
-        // Objeto para ayudar en la conversión de coordenadas 2D a 3D
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
-        
-        // Vectores temporales para evitar reasignaciones constantes y ahorrar memoria/rendimiento
         const tempVector = new THREE.Vector3();
         
-        // =================================================================
-        // VARIABLES DE CONTROL DE CÁMARA (MANUAL)
-        // =================================================================
+        // ... (Variables de control de cámara) ...
         let isDragging = false; 
         let isPointerActive = false;
         let pointerStart = { x: 0, y: 0 };
         let previousPointerPosition = { x: 0, y: 0 };
-        const ORBIT_RADIUS = 250; // AUMENTADO A 250 para mejor vista inicial
-        
-        let theta = 0.5; // Ligera rotación inicial para ver el sol
+        const ORBIT_RADIUS = 250; 
+        let theta = 0.5; 
         let phi = Math.PI / 2;
-        
         const DAMPING_FACTOR = 0.9; 
         const ROTATION_MULTIPLIER = 0.005;
         let velocityX = 0;
         let velocityY = 0;
-        
         const DRAG_THRESHOLD = 5;
 
         // =================================================================
@@ -235,8 +219,8 @@
         let isAudioContextStarted = false;
         let musicStarted = false;
 
-        const TOTAL_SONGS = 2; // Asumiendo C1 y C2
-        const TRACKS_PER_SONG = 8; // Asumiendo T1 a T8
+        const TOTAL_SONGS = 2; // C1 y C2
+        const TRACKS_PER_SONG = 8; // Asumimos un máximo de 8 pistas
         
         let currentSongIndex = 0; // 0 para C1, 1 para C2
         
@@ -253,7 +237,8 @@
         const SONG_DATA_STRUCTURES = [];
         for (let i = 1; i <= TOTAL_SONGS; i++) {
             let layers = [];
-            for (let j = 1; j <= TRACKS_PER_SONG; j++) {
+            // Usamos TRACKS_PER_SONG para mantener la consistencia en la estructura
+            for (let j = 1; j <= TRACKS_PER_SONG; j++) { 
                 layers.push(getTrackName(i, j));
             }
             SONG_DATA_STRUCTURES.push({ name: `Cancion ${i}`, layers: layers });
@@ -281,7 +266,11 @@
                 const songKey = `C${songNum}`;
                 SONG_TONE_PARTS[songKey] = {}; 
 
-                for (let trackNum = 1; trackNum <= TRACKS_PER_SONG; trackNum++) {
+                // 🚨 CORRECCIÓN CLAVE: Solo cargamos las pistas que existen. 
+                // Asumimos C1 tiene 8 (T1-T8) y C2 tiene 7 (T1-T7).
+                const tracksToLoad = (songNum === 1) ? 8 : 7;
+                
+                for (let trackNum = 1; trackNum <= tracksToLoad; trackNum++) {
                     const trackName = getTrackName(songNum, trackNum);
                     const fileName = `${trackName}.mid`; 
                     const fileUrl = GITHUB_RAW_BASE_URL + fileName; // URL de Contenido Crudo
@@ -315,6 +304,8 @@
                             })
                             .catch(e => {
                                 console.error(`Error al cargar el archivo MIDI ${fileUrl}:`, e);
+                                // Devolvemos una promesa resuelta para que Promise.all no falle por un error
+                                return Promise.resolve();
                             })
                     );
                 }
@@ -367,8 +358,9 @@
 
             // 4. Reasignar capas a los planetas existentes
             planets.forEach((planet, index) => {
-                const layerIndex = index % INSTRUMENT_LAYERS.length;
-                const assignedLayer = INSTRUMENT_LAYERS[layerIndex];
+                // Si la nueva canción tiene menos pistas (ej. C2 solo tiene 7), el módulo se ajusta
+                const layerIndex = index % (SONG_DATA_STRUCTURES[currentSongIndex].layers.length); 
+                const assignedLayer = SONG_DATA_STRUCTURES[currentSongIndex].layers[layerIndex];
                 
                 planet.assignedLayer = assignedLayer;
                 planet.pulseTypeName = `Pista: ${assignedLayer}`; 
@@ -537,9 +529,12 @@
         function createSunAtPosition(position) {
             const sunRadius = 12;
             const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
-            const sunMaterial = new THREE.MeshBasicMaterial({ 
+            
+            // 🚨 CORRECCIÓN CLAVE: Usamos MeshStandardMaterial para soportar 'emissive'
+            const sunMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0xffffff, 
-                emissive: 0xff8800 
+                emissive: 0xff8800, // Color de brillo
+                emissiveIntensity: 1.0 // Intensidad
             }); 
             const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
             sunMesh.position.copy(position);
@@ -565,7 +560,7 @@
             // Se almacena el mesh para acceder a su posición Vector3
             suns.push({ mesh: sunMesh, light: sunLight, mass: SUN_MASS });
             
-            // --- NUEVA LÓGICA: CAMBIAR LA CANCIÓN AL CREAR UN NUEVO SOL ---
+            // --- LÓGICA: CAMBIAR LA CANCIÓN AL CREAR UN NUEVO SOL ---
             if (suns.length > 1 && musicStarted) {
                 changeSong();
             }
@@ -806,9 +801,10 @@
             // 4. Configuración de AUDIO (Asignación de capa)
             
             // Asignación de Capa (El instrumento al que se asigna este planeta)
-            const activePlanetsInSong = planets.filter(p => INSTRUMENT_LAYERS.includes(p.assignedLayer)).length;
-            const layerIndex = activePlanetsInSong % INSTRUMENT_LAYERS.length;
-            const assignedLayer = INSTRUMENT_LAYERS[layerIndex];
+            const activeLayersCount = planets.filter(p => INSTRUMENT_LAYERS.includes(p.assignedLayer)).length;
+            const currentLayers = SONG_DATA_STRUCTURES[currentSongIndex].layers;
+            const layerIndex = activeLayersCount % currentLayers.length;
+            const assignedLayer = currentLayers[layerIndex];
             
             // Crear un objeto dummy para audio
             const { synth, panner } = createSynth(); 
