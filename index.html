@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -219,7 +219,7 @@
                 </div>
                 
                 <div class="flex flex-col col-span-1">
-                    <span class="text-yellow-400">MASA (Tierra=1)</span>
+                    <span class="text-yellow-400" id="massLabel">MASA (kg)</span>
                     <span id="infoMass" class="text-white">N/A</span>
                 </div>
             </div>
@@ -303,55 +303,67 @@
 
         // =================================================================
         // ESTRUCTURA DE DATOS DEL SISTEMA SOLAR REAL (Catálogo)
+        // ** MODIFICADO: Se añade 'massKg' con la masa en kilogramos (notación científica). **
         // =================================================================
 
+        const M_TIERRA = 5.9722e24; // 5.9722 x 10^24 kg
+        
         const SOLAR_SYSTEM_PLANETS = [
             // SOL
             { 
                 name: 'Sol', color: 0xffa500, radius: 25.0, massFactor: 1000.0, isSun: true, 
                 fact: 'La estrella central, responsable de la gravedad en el sistema. Emite luz intensa.',
-                distance: '0 km', period: 'N/A', composition: 'Hidrógeno y Helio'
+                distance: '0 km', period: 'N/A', composition: 'Hidrógeno y Helio',
+                massKg: 1.989e30 // Masa del Sol en kg
             },
-            // PLANETAS (REDUCIDOS AL 50% DE SU VALOR ANTERIOR)
+            // PLANETAS (massKg en kg | massFactor en relación a la Tierra para la física)
             { 
-                name: 'Mercurio', color: 0x9f9e9e, radius: 4.725, massFactor: 0.05, isSun: false, 
+                name: 'Mercurio', color: 0x9f9e9e, radius: 4.725, massFactor: 0.0553, isSun: false, 
                 fact: 'El planeta más pequeño de nuestro sistema solar y el más cercano al Sol',
-                distance: '58 millones km', period: '88 días', composition: 'Roca y Metales (Hierro)'
+                distance: '58 millones km', period: '88 días', composition: 'Roca y Metales (Hierro)',
+                massKg: 3.3011e23 // 3.3011 x 10^23 kg
             },
             { 
-                name: 'Venus', color: 0xe68a00, radius: 8.82, massFactor: 0.82, isSun: false, 
+                name: 'Venus', color: 0xe68a00, radius: 8.82, massFactor: 0.815, isSun: false, 
                 fact: 'El planeta más caliente con una atmósfera tóxica de Dióxido de Carbono y nubes de ácido sulfúrico.',
-                distance: '108 millones km', period: '225 días', composition: 'Roca fundida y Nubes de Ácido Sulfúrico'
+                distance: '108 millones km', period: '225 días', composition: 'Roca fundida y Nubes de Ácido Sulfúrico',
+                massKg: 4.8675e24 // 4.8675 x 10^24 kg (¡Tu ejemplo!)
             },
             { 
                 name: 'Tierra', color: 0x0077be, radius: 9.45, massFactor: 1.0, isSun: false, 
                 fact: 'Nuestro planeta hogar, el único mundo conocido con océanos de agua líquida y vida.',
-                distance: '150 millones km', period: '365 días', composition: 'Silicatos, Hierro, Níquel'
+                distance: '150 millones km', period: '365 días', composition: 'Silicatos, Hierro, Níquel',
+                massKg: 5.9722e24 // 5.9722 x 10^24 kg
             },
             { 
-                name: 'Marte', color: 0xc1440e, radius: 6.3, massFactor: 0.11, isSun: false, 
+                name: 'Marte', color: 0xc1440e, radius: 6.3, massFactor: 0.107, isSun: false, 
                 fact: 'El planeta rojo con casquetes polares de hielo y evidencia de antiguos ríos y lagos.',
-                distance: '228 millones km', period: '687 días', composition: 'Roca Volcánica y Óxidos de Hierro'
+                distance: '228 millones km', period: '687 días', composition: 'Roca Volcánica y Óxidos de Hierro',
+                massKg: 6.4169e23 // 6.4169 x 10^23 kg
             },
             { 
                 name: 'Júpiter', color: 0xe0c38c, radius: 26.775, massFactor: 317.8, isSun: false, 
                 fact: 'El planeta más grande de nuestro sistema solar con una distintiva Gran Mancha Roja',
-                distance: '778 millones km', period: '12 años', composition: 'Hidrógeno y Helio (Gaseoso)'
+                distance: '778 millones km', period: '12 años', composition: 'Hidrógeno y Helio (Gaseoso)',
+                massKg: 1.8982e27 // 1.8982 x 10^27 kg
             },
             { 
                 name: 'Saturno', color: 0xe0e0c3, radius: 23.625, massFactor: 95.2, isSun: false, 
                 fact: 'Famoso por su espectacular sistema de anillos compuestos principalmente de partículas de hielo.',
-                distance: '1429 millones km', period: '29.5 años', 'composition': 'Hidrógeno, Helio y Hielo (Gaseoso)'
+                distance: '1429 millones km', period: '29.5 años', 'composition': 'Hidrógeno, Helio y Hielo (Gaseoso)',
+                massKg: 5.6834e26 // 5.6834 x 10^26 kg
             },
             { 
                 name: 'Urano', color: 0x82b3c9, radius: 18.9, massFactor: 14.5, isSun: false, 
                 fact: 'Un gigante de hielo que rota sobre su lado, con un color azul-verdoso debido al metano.',
-                distance: '2871 millones km', period: '84 años', composition: 'Hielo, Metano y Roca'
+                distance: '2871 millones km', period: '84 años', composition: 'Hielo, Metano y Roca',
+                massKg: 8.6810e25 // 8.6810 x 10^25 kg
             },
             { 
                 name: 'Neptuno', color: 0x006699, radius: 18.9, massFactor: 17.1, isSun: false, 
                 fact: 'El planeta más ventoso con las tormentas más fuertes en el sistema solar.',
-                distance: '4500 millones km', period: '165 años', composition: 'Hielo, Amoniaco y Metano'
+                distance: '4500 millones km', period: '165 años', composition: 'Hielo, Amoniaco y Metano',
+                massKg: 1.0241e26 // 1.0241 x 10^26 kg
             },
         ];
 
@@ -501,6 +513,7 @@
             return nearestSun;
         }
         
+        // ** FUNCIÓN MODIFICADA: Ahora usa 'massKg' y formatea a notación científica **
         function updateInfoPanel(planetData) {
             document.getElementById('infoPanel').classList.add('active');
             
@@ -513,7 +526,21 @@
             document.getElementById('infoDistance').textContent = planetData.distance || 'N/A';
             document.getElementById('infoPeriod').textContent = planetData.period || 'N/A';
             document.getElementById('infoComposition').textContent = planetData.composition || 'N/A';
-            document.getElementById('infoMass').textContent = planetData.massFactor ? planetData.massFactor.toFixed(2) : 'N/A';
+            
+            // Lógica para mostrar la masa en kg (notación científica)
+            const massValue = planetData.massKg; 
+            let formattedMass;
+            
+            if (typeof massValue === 'number' && massValue > 0) {
+                // toExponential(4) fuerza 4 decimales: X.XXXXe+YY. Reemplazamos 'e+' por 'e'
+                formattedMass = massValue.toExponential(4).replace('e+', 'e');
+            } else {
+                // Si no hay massKg (ej: Sol inicial), usamos el massFactor para la física si es > 0, sino N/A
+                formattedMass = planetData.massFactor > 0 ? (planetData.massFactor * M_TIERRA).toExponential(4).replace('e+', 'e') : 'N/A';
+            }
+
+            document.getElementById('infoMass').textContent = formattedMass;
+            document.getElementById('massLabel').textContent = 'MASA (kg)'; // Asegura que la etiqueta es correcta
         }
 
         function createSunAtPosition(position) {
@@ -551,7 +578,8 @@
             sunLight.position.copy(position);
             scene.add(sunLight);
 
-            suns.push({ mesh: sunMesh, light: sunLight, mass: sunMass, name: 'Sol', fact: sunData.fact, distance: sunData.distance, period: sunData.period, composition: sunData.composition, massFactor: sunData.massFactor });
+            // Se añade massKg
+            suns.push({ mesh: sunMesh, light: sunLight, mass: sunMass, name: 'Sol', fact: sunData.fact, distance: sunData.distance, period: sunData.period, composition: sunData.composition, massFactor: sunData.massFactor, massKg: sunData.massKg });
             
             updateInfoPanel(sunData); 
             
@@ -656,7 +684,7 @@
                 const selectedEntity = entitySelect ? entitySelect.value : 'planet';
                 
                 if (dragTarget && (dragTarget.isSun || selectedEntity === 'sun')) {
-                     createSunOnClick(event); 
+                    createSunOnClick(event); 
                 }
             }
             
@@ -705,7 +733,7 @@
             const positionUnit = relativePosition.clone().normalize();
             let initialVelocity = new THREE.Vector3().crossVectors(positionUnit, new THREE.Vector3(0, 1, 0));
             if (initialVelocity.lengthSq() < 0.001) {
-                 initialVelocity.set(1, 0, 0); 
+                    initialVelocity.set(1, 0, 0); 
             }
             
             initialVelocity.normalize().multiplyScalar(orbitVelocityMag * THREE.MathUtils.randFloat(0.32, 0.38));
@@ -740,7 +768,8 @@
                 velocity: initialVelocity, acceleration: new THREE.Vector3(0, 0, 0),
                 name: planetData.name, fact: planetData.fact, id: planets.length + 1, 
                 distance: planetData.distance, period: planetData.period, composition: planetData.composition,
-                massFactor: planetData.massFactor 
+                massFactor: planetData.massFactor,
+                massKg: planetData.massKg // Propiedad añadida
             };
             scene.add(planetMesh);
             planets.push(planetObject);
@@ -944,12 +973,12 @@
                         cell.textContent = ''; 
                         cell.disabled = true;
                     } else if (questionData) {
-                         cell.addEventListener('click', () => showQuestion(categoryKey, points));
-                         cell.classList.add('hover:bg-teal-600'); 
+                            cell.addEventListener('click', () => showQuestion(categoryKey, points));
+                            cell.classList.add('hover:bg-teal-600'); 
                     } else {
-                          cell.classList.add('bg-gray-700', 'answered');
-                          cell.textContent = '';
-                          cell.disabled = true;
+                            cell.classList.add('bg-gray-700', 'answered');
+                            cell.textContent = '';
+                            cell.disabled = true;
                     }
 
                     boardContainer.appendChild(cell);
@@ -969,8 +998,8 @@
             activeQuestion = availableQuestions[points][categoryKey];
 
             if (!activeQuestion || activeQuestion.answered) {
-                 renderJeopardyBoard();
-                 return;
+                    renderJeopardyBoard();
+                    return;
             }
             
             document.getElementById('jeopardyBoard').classList.add('hidden');
@@ -988,9 +1017,9 @@
             const optionsContainer = document.getElementById('optionsContainer');
             optionsContainer.innerHTML = activeQuestion.options.map((option, index) => `
                 <button data-answer="${option}" 
-                         data-category="${categoryKey}" 
-                         data-points="${points}"
-                         class="trivia-option-button w-full text-left p-3 bg-gray-300 hover:bg-yellow-400 text-gray-900 rounded-md transition duration-150 text-base">
+                            data-category="${categoryKey}" 
+                            data-points="${points}"
+                            class="trivia-option-button w-full text-left p-3 bg-gray-300 hover:bg-yellow-400 text-gray-900 rounded-md transition duration-150 text-base">
                     ${String.fromCharCode(65 + index)}. ${option}
                 </button>
             `).join('');
@@ -1047,7 +1076,7 @@
             if (questionsAnswered >= MAX_QUESTIONS) {
                 setTimeout(endJeopardyGame, 2000); // Wait 2 seconds before showing final score
             } else {
-                 document.getElementById('backToBoardButton').classList.remove('hidden');
+                    document.getElementById('backToBoardButton').classList.remove('hidden');
             }
         }
         
@@ -1075,11 +1104,11 @@
                 
                 const container = document.getElementById('container');
                 if (container) {
-                     container.appendChild(renderer.domElement);
+                        container.appendChild(renderer.domElement);
                 } else {
-                     console.error("El contenedor #container no se encontró. No se puede iniciar Three.js.");
-                     showMessage("Error crítico: No se encontró el contenedor 3D.", 5000, new THREE.Color(0xff0000));
-                     return; 
+                        console.error("El contenedor #container no se encontró. No se puede iniciar Three.js.");
+                        showMessage("Error crítico: No se encontró el contenedor 3D.", 5000, new THREE.Color(0xff0000));
+                        return; 
                 }
                 
                 ambientLight = new THREE.AmbientLight(0x404040, 0.5); 
@@ -1368,4 +1397,3 @@
     </script>
 </body>
 </html>
-
