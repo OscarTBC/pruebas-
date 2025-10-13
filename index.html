@@ -1,13 +1,12 @@
-<!DOCTYPE html>
+
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Armonía de las Esferas - Jeopardy</title>
-    <!-- Carga de Tailwind CSS para estilos modernos y responsivos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Configuración de Tailwind para incluir colores personalizados
+        // Configuración de Tailwind 
         tailwind.config = {
             theme: {
                 extend: {
@@ -30,152 +29,170 @@
             }
         }
     </script>
-    <!-- Carga de Three.js para la renderización 3D -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* Evita barras de desplazamiento */
-            font-family: 'Inter', sans-serif;
-            background-color: #0d0d1a;
-            color: white;
-        }
-        canvas {
-            display: block;
-            touch-action: none;
-        }
-        .point-cell:not(.answered):hover {
-            transform: scale(1.05);
-            background-color: #14b8a6; /* Turquesa más brillante */
-        }
-        .answered {
-            opacity: 0.5;
-            cursor: default;
-        }
-        #questionDisplay {
-            background-color: white;
-            color: #1f2937;
-            min-height: 20rem;
-        }
-        .trivia-option-button {
-             color: #1f2937;
-        }
-        .trivia-option-button:hover:not(:disabled) {
-            background-color: #fcd34d !important; /* Amarillo */
-        }
+        /* ====== ESTILOS BASE ====== */
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #0d0d1a; color: white; }
+        canvas { display: block; touch-action: none; }
+        .point-cell:not(.answered):hover { transform: scale(1.05); background-color: #14b8a6; }
+        .answered { opacity: 0.5; cursor: default; }
+        #questionDisplay { background-color: white; color: #1f2937; min-height: 20rem; }
+        .trivia-option-button { color: #1f2937; }
+        .trivia-option-button:hover:not(:disabled) { background-color: #fcd34d !important; }
+        #planetCatalog { z-index: 10; }
+        .catalog-item { cursor: grab; user-select: none; transition: transform 0.1s; }
+        .catalog-item.dragging { cursor: grabbing; transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 20px rgba(255, 255, 255, 0.5); z-index: 50; }
+        #messageBox { position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 100; padding: 10px 20px; border-radius: 8px; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); animation: fadeInUp 0.3s ease-out forwards; }
         
-        /* Contenedor del Catálogo de Planetas - Visibilidad */
-        #planetCatalog {
-            /* Asegura que el catálogo esté siempre encima del canvas pero debajo del overlay */
-            z-index: 10;
-        }
-        .catalog-item {
-            cursor: grab;
-            user-select: none;
-            transition: transform 0.1s;
-        }
-        .catalog-item.dragging {
-            cursor: grabbing;
-            transform: scale(1.1);
-            opacity: 0.8;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-            z-index: 50; /* Por encima de todo en 2D */
-        }
-        #messageBox {
-            position: fixed;
-            bottom: 50px; /* Mover abajo, lejos de los controles superiores */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            animation: fadeInUp 0.3s ease-out forwards;
-        }
+        /* Ajuste: quitamos .active en el HTML, pero mantenemos la transición */
+        #infoPanel { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(0, 0, 0, 0.75); backdrop-filter: blur(5px); border-top: 1px solid rgba(255, 255, 255, 0.1); z-index: 11; padding: 1rem; color: white; opacity: 0; transition: opacity 0.5s, transform 0.3s; }
+        #infoPanel.active { opacity: 1; }
         
-        /* NUEVO: Panel de Información del Planeta */
-        #infoPanel {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(5px);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 11; /* Aumentado a 11 para sobreponerse a #planetCatalog (z-index: 10) */
-            padding: 1rem;
-            color: white;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-        #infoPanel.active {
-            opacity: 1;
+        @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+
+        /* ****************************************************** */
+        /* ====== OPTIMIZACIÓN MÓVIL (max-width: 768px) ====== */
+        /* ****************************************************** */
+        @media (max-width: 768px) {
+            
+            /* 1. Catálogo de Planetas (Fondo): Altura 100px */
+            #planetCatalog {
+                bottom: 0; top: auto; width: 100%; height: 100px; 
+                flex-direction: row; overflow-x: auto; overflow-y: hidden; 
+                padding: 0.5rem; background-color: rgba(0, 0, 0, 0.9); z-index: 40; 
+                justify-content: flex-start; 
+            }
+            #planetCatalog p { display: none; }
+            #catalogList { display: flex; gap: 1rem; }
+            .catalog-item { width: 80px; font-size: 0.75rem; flex-direction: column; }
+            .catalog-item > div:last-child { margin-left: 0 !important; margin-top: 0.3rem; font-size: 0.7rem; }
+
+
+            /* 2. Panel de Información (#infoPanel): Posicionado encima del catálogo (100px) */
+            #infoPanel {
+                bottom: 100px; 
+                padding: 0.5rem; 
+                z-index: 30; 
+                flex-direction: column; 
+                align-items: flex-start;
+                transition: transform 0.3s; 
+            }
+
+            #infoContent {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+            
+            #infoPanel .w-full.sm\:w-1\/2.flex { 
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+            #infoName { font-size: 1.25rem !important; }
+            #infoFact { font-size: 0.7rem; }
+
+            /* Datos Clave (Mitad inferior): Forzar 2 columnas */
+            #infoPanel .w-full.sm\:w-1\/2.grid {
+                width: 100%;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 0.5rem;
+                font-size: 0.7rem;
+                text-align: center;
+                margin-top: 0.5rem;
+            }
+            #infoPanel .col-span-2 { grid-column: span 1 / span 1 !important; }
+
+            /* 3. Controles Flotantes (#controls): POSICIÓN MOVIDA A LA PARTE SUPERIOR */
+            #controls {
+                bottom: auto !important; 
+                top: 0.5rem !important; 
+                left: 50%; 
+                transform: translateX(-50%);
+                flex-direction: row !important; 
+                z-index: 35;
+                background-color: transparent; 
+                padding: 0.5rem;
+                width: 100%;
+                max-width: 400px; 
+                justify-content: space-evenly;
+            }
+
+            #controls button {
+                font-size: 0.8rem;
+                padding: 0.6rem 1.2rem;
+                flex-grow: 1; 
+            }
+            
+            #controls div.sm\:ml-8 {
+                margin-left: 0 !important;
+            }
+
+            /* Estilos del tablero Jeopardy */
+            #triviaContent { padding: 0.5rem; }
+            #jeopardyBoard { grid-template-columns: repeat(3, 1fr) !important; gap: 0.3rem !important; }
+            #jeopardyBoard > div:first-child, #jeopardyBoard > div:nth-child(2), #jeopardyBoard > div:nth-child(3) { font-size: 0.8rem !important; height: 40px; }
+            .point-cell { font-size: 1rem !important; padding: 0.8rem 0.2rem !important; }
+            
+            /* Pantalla Final (CORRECCIÓN DE TÍTULO PARA EVITAR DESBORDAMIENTO) */
+            #finalScoreOverlay h2 { font-size: 2rem !important; line-height: 1.1; }
+            #finalScoreOverlay p { font-size: 0.9rem !important; padding-left: 0.5rem; padding-right: 0.5rem; }
+            #finalScoreOverlay p.text-6xl { font-size: 2.5rem !important; line-height: 1.1; margin-top: 1rem; margin-bottom: 1.5rem; }
+            #finalScoreOverlay .bg-white { padding: 1.5rem !important; max-width: 90%; }
+            #finalScoreOverlay button { font-size: 1rem !important; padding: 0.8rem 1.2rem !important; }
+
+            /* Estilos para la tarjeta de pregunta de Trivia */
+            #currentQuestionText { font-size: 1.25rem !important; line-height: 1.3; margin-bottom: 1rem; }
+            #questionDisplay { min-height: auto !important; padding: 1rem !important; }
+            #feedbackMessage { font-size: 1rem !important; margin-top: 1rem; }
         }
     </style>
-</head>
+    </head>
 <body>
 
-    <!-- Contenedor del Canvas y Overlay de Instrucciones -->
     <div id="container"></div>
     
-    <!-- Contenedor para mensajes flotantes -->
     <div id="messageBox" class="hidden"></div>
 
-    <!-- Overlay de Inicio -->
+    <audio id="backgroundMusic" loop>
+        <source src="audioorbita_sound.mp3" type="audio/mp3">
+        Tu navegador no soporta el elemento de audio.
+    </audio> 
     <div id="overlay" style="background-color: #f75b0f;" class="fixed inset-0 flex flex-col items-center justify-center p-4 text-white transition-opacity duration-500 ease-in-out z-30">
         <div class="flex flex-col items-center text-center p-4">
             
-            <!-- Título principal en color blanco, más grande y prominente -->
             <h1 class="text-6xl sm:text-7xl font-extrabold mb-12 text-white uppercase tracking-wider">
                 Armonía de las Esferas
             </h1>
             
-            <!-- Botón de inicio en blanco con texto naranja, más grande -->
-            <button id="startButton" class="px-10 py-5 bg-white hover:bg-gray-200 text-brand-orange font-extrabold text-xl rounded-xl shadow-2xl transition transform hover:scale-105">
-                ¡Empezar Simulación!
-            </button>
-        </div>
+            </div>
     </div>
     
-    <!-- Catálogo de Planetas (Side Bar) -->
     <div id="planetCatalog" class="fixed right-0 top-0 h-full w-48 bg-gray-900/70 backdrop-blur-sm p-4 space-y-4 flex flex-col items-center justify-start pt-4 pb-48 overflow-y-auto z-10 opacity-0 transition-opacity duration-500 pointer-events-none">
         
-        <!-- CORRECCIÓN: Texto 'Arrastra para crear órbita' movido arriba sin empujar la barra -->
         <p class="text-lg text-gray-400 mb-4">Arrastra para crear órbita.</p>
         
         <div id="catalogList" class="space-y-4 w-full">
-            <!-- Items del catálogo inyectados aquí -->
-        </div>
+            </div>
     </div>
 
-    <!-- Controles Flotantes -->
-    <div id="controls" class="fixed inset-x-0 bottom-4 flex flex-col items-center space-y-3 z-20 opacity-0 transition-opacity duration-500 pointer-events-none sm:flex-row sm:justify-center sm:bottom-auto sm:top-4 sm:space-y-0 sm:px-6">
+    <div id="controls" class="fixed inset-x-0 top-4 flex justify-center items-center gap-4 z-20 opacity-0 transition-opacity duration-500 pointer-events-none p-2 sm:top-4">
         
-        <!-- Botón Reiniciar Simulación (MOVIDO y ordenado a la izquierda) -->
-        <div class="sm:w-auto">
-            <button id="clearButton" style="background-color: #f75b0f;" class="px-5 py-3 hover:bg-orange-700 text-white font-semibold rounded-full shadow-lg transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-orange-500 focus:ring-opacity-50">
-                Reiniciar Simulación
-            </button>
-        </div>
+        <button id="clearButton" style="background-color: #f75b0f;" 
+            class="px-5 py-3 hover:bg-orange-700 text-white font-semibold rounded-full shadow-lg transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-orange-500 focus:ring-opacity-50">
+            Reiniciar Simulación
+        </button>
         
-        <!-- Botón Iniciar Trivia (MOVIDO y ordenado al centro) -->
-        <div class="sm:w-auto sm:ml-8">
-            <button id="triviaButton" class="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-50">
-                Iniciar Trivia
-            </button>
-        </div>
+        <button id="triviaButton" 
+            class="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg transition transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-50">
+            Iniciar Trivia
+        </button>
 
-        <!-- Se mantiene el botón de pausa oculto pero necesario para la lógica de Trivia/Pausa, aunque se usa el de Trivia como punto de control principal -->
         <button id="pauseButton" class="hidden" onclick="togglePause()"></button>
     </div>
 
-    <!-- NUEVO: Panel de Información del Planeta (Parte inferior) -->
-    <div id="infoPanel" class="active">
+    <div id="infoPanel" class="opacity-0">
         <div id="infoContent" class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-8">
-            <!-- Columna Izquierda: Nombre y Fact -->
             <div class="w-full sm:w-1/2 flex items-center space-x-4">
                 <div id="infoSphere" class="flex-shrink-0 w-8 h-8 rounded-full border border-white"></div>
                 <div class="flex-grow">
@@ -184,29 +201,24 @@
                 </div>
             </div>
             
-            <!-- Columna Derecha: Datos Clave - MÁS COMPACTO -->
-            <div class="w-full sm:w-1/2 grid grid-cols-4 gap-4 text-sm font-semibold">
+            <div class="w-full sm:w-1/2 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm font-semibold">
                 
-                <!-- Columna 1: Distancia del Sol -->
-                <div class="flex flex-col col-span-2 sm:col-span-1">
+                <div class="flex flex-col col-span-1">
                     <span class="text-yellow-400">DISTANCIA DEL SOL</span>
                     <span id="infoDistance" class="text-white">N/A</span>
                 </div>
 
-                <!-- Columna 2: Periodo Orbital -->
-                <div class="flex flex-col col-span-2 sm:col-span-1">
+                <div class="flex flex-col col-span-1">
                     <span class="text-yellow-400">PERIODO ORBITAL</span>
                     <span id="infoPeriod" class="text-white">N/A</span>
                 </div>
                 
-                <!-- Columna 3: Composición -->
-                <div class="flex flex-col col-span-2 sm:col-span-1">
+                <div class="flex flex-col col-span-1">
                     <span class="text-yellow-400">COMPOSICIÓN</span>
                     <span id="infoComposition" class="text-white">N/A</span>
                 </div>
                 
-                <!-- Columna 4: Masa -->
-                <div class="flex flex-col col-span-2 sm:col-span-1">
+                <div class="flex flex-col col-span-1">
                     <span class="text-yellow-400">MASA (Tierra=1)</span>
                     <span id="infoMass" class="text-white">N/A</span>
                 </div>
@@ -215,43 +227,33 @@
     </div>
 
 
-    <!-- Overlay de JEOPARDY (Inicialmente Oculto) -->
     <div id="jeopardyOverlay" style="background-color: #f75b0f;" class="fixed inset-0 flex flex-col items-center justify-center p-4 text-white z-40 hidden">
         <div id="triviaContent" class="w-full max-w-6xl bg-gray-900/90 rounded-xl shadow-2xl p-6 space-y-6">
             
-            <!-- Encabezado y Puntuación -->
             <div class="flex justify-between items-center border-b pb-3 border-gray-700">
-                <!-- Título Simplificado -->
                 <h2 class="text-3xl font-bold text-yellow-400">Armonía de las Esferas</h2>
                 <div id="score" class="text-lg font-medium bg-gray-800 p-2 rounded-lg">
                     Puntos: <span id="currentScore" class="text-yellow-400">0</span>
                 </div>
-                <!-- Botón Regresar - Llama a resumeSimulation() -->
                 <button id="resumeButton" class="px-4 py-2 bg-trivia-teal hover:bg-teal-600 rounded-lg text-white font-semibold transition">Regresar</button>
             </div>
             
-            <!-- Contenedor del Tablero (Grid) -->
             <div id="jeopardyBoard" class="grid grid-cols-3 gap-3">
-                <!-- Títulos de Categoría -->
-                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">FÍSICA (Gravedad)</div>
-                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">COMPOSICIÓN</div>
-                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">DATOS DEL SISTEMA</div>
+                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">CERCANOS</div>
+                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">GIGANTES</div>
+                <div class="p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white">CARACTERÍSTICAS</div>
                 
-                <!-- Las celdas de puntos se inyectan aquí -->
-            </div>
+                </div>
             
-            <!-- Contenedor de la Pregunta Activa -->
             <div id="questionDisplay" class="hidden flex-col justify-center items-center p-6 bg-white text-gray-900 rounded-lg question-card">
                 <div id="questionCategory" class="text-xl font-semibold text-yellow-600 mb-2"></div>
                 <div id="questionValue" class="2xl font-bold mb-4"></div>
                 <div id="currentQuestionText" class="text-2xl text-center mb-6"></div>
                 
                 <div id="optionsContainer" class="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Opciones de respuesta inyectadas aquí -->
-                </div>
+                    </div>
                 
                 <div id="feedbackMessage" class="mt-4 text-xl font-bold hidden"></div>
-                <!-- Botón Volver al Tablero - Llama a renderJeopardyBoard() -->
                 <button id="backToBoardButton" class="mt-6 px-6 py-3 bg-trivia-teal hover:bg-teal-600 rounded-lg text-white font-semibold transition hidden">Volver al Tablero</button>
             </div>
             
@@ -259,7 +261,6 @@
         </div>
     </div>
     
-    <!-- NUEVO: Overlay de Puntuación Final -->
     <div id="finalScoreOverlay" style="background-color: #f75b0f;" class="fixed inset-0 flex flex-col items-center justify-center p-6 text-white z-50 hidden">
         <div class="bg-white p-10 rounded-xl text-center shadow-2xl max-w-lg w-full">
             <h2 class="text-5xl font-extrabold text-gray-900 mb-4">¡JUEGO TERMINADO!</h2>
@@ -270,7 +271,6 @@
             </button>
         </div>
     </div>
-
 
     <script>
         // =================================================================
@@ -341,7 +341,7 @@
             { 
                 name: 'Saturno', color: 0xe0e0c3, radius: 23.625, massFactor: 95.2, isSun: false, 
                 fact: 'Famoso por su espectacular sistema de anillos compuestos principalmente de partículas de hielo.',
-                distance: '1429 millones km', period: '29.5 años', composition: 'Hidrógeno, Helio y Hielo (Gaseoso)'
+                distance: '1429 millones km', period: '29.5 años', 'composition': 'Hidrógeno, Helio y Hielo (Gaseoso)'
             },
             { 
                 name: 'Urano', color: 0x82b3c9, radius: 18.9, massFactor: 14.5, isSun: false, 
@@ -356,13 +356,13 @@
         ];
 
         // =================================================================
-        // DECLARACIÓN DE VARIABLES GLOBALES (Para evitar ReferenceError y Redeclaration)
+        // DECLARACIÓN DE VARIABLES GLOBALES 
         // =================================================================
         let scene, camera, renderer;
         let ambientLight;
         let starField; 
-        let dragObject = null; // Objeto temporal para arrastre visual
-        let dragTarget = null; // Datos del planeta siendo arrastrado
+        let dragObject = null; 
+        let dragTarget = null; 
         
         const suns = []; 
         const planets = [];
@@ -377,7 +377,7 @@
         let isPointerActive = false;
         let pointerStart = { x: 0, y: 0 };
         let previousPointerPosition = { x: 0, y: 0 };
-        const ORBIT_RADIUS = 400; // AUMENTADO A 400
+        const ORBIT_RADIUS = 400; 
         
         let theta = 0.5; 
         let phi = Math.PI / 2;
@@ -390,10 +390,10 @@
         let musicStarted = false;
 
         // Constantes de Física/Visuales
-        const GRAVITATIONAL_CONSTANT = 2.5; // AUMENTADO A 2.5 PARA ORBITAS MÁS PEQUEÑAS
+        const GRAVITATIONAL_CONSTANT = 2.5; 
         const SUN_MASS = 1000.0; 
         const PLANET_MASS = 1.0; 
-        const TIME_STEP = 0.02; // REDUCIDO A 0.02 PARA MOVIMIENTO MÁS LENTO Y PRECISO
+        const TIME_STEP = 0.02; 
         const COLLISION_DISTANCE = 18; 
         const MAX_SUN_DISTANCE = 100; 
         const MAX_EXPULSION_DISTANCE = 1000;
@@ -410,51 +410,50 @@
         // Trivia
         let currentScore = 0; 
         const JEOPARDY_POINTS = [100, 200, 300, 400, 500];
+        // Nombres de categoría utilizados en el JS para que coincidan con el HTML móvil
         const JEOPARDY_CATEGORIES = {
-            'CERCANOS': 'PLANETAS CERCANOS AL SOL',
-            'GIGANTES': 'GIGANTES DEL SISTEMA SOLAR',
-            'EXTREMAS': 'CARACTERÍSTICAS EXTREMAS'
+            'CERCANOS': 'CERCANOS', 
+            'GIGANTES': 'GIGANTES', 
+            'EXTREMAS': 'CARACTERÍSTICAS' 
         };
         let answeredQuestions = {}; 
         let availableQuestions = {}; 
         let activeQuestion;
-        // NUEVAS VARIABLES DE CONTROL DE TRIVIA
         const MAX_QUESTIONS = 5;
         let questionsAnswered = 0;
 
 
         // =================================================================
-        // DEFINICIÓN DE PREGUNTAS DE JEOPARDY (NUEVAS PREGUNTAS)
+        // DEFINICIÓN DE PREGUNTAS DE JEOPARDY 
         // =================================================================
         
         const JEOPARDY_QUESTIONS = [
             // COLUMNA 1: PLANETAS CERCANOS AL SOL
             { category: 'CERCANOS', points: 100, question: '¿Cuál es el planeta más cercano al Sol?', answer: 'Mercurio', options: ['Venus', 'Marte', 'Mercurio', 'Tierra'] },
-            { category: 'CERCANOS', points: 200, question: '¿Cuál es el planeta más pequeño del sistema solar?', answer: 'Mercurio', options: ['Venus', 'Mercurio', 'Tierra', 'Marte'] },
-            { category: 'CERCANOS', points: 300, question: '¿Qué planeta tiene una atmósfera tóxica de dióxido de carbono?', answer: 'Venus', options: ['Marte', 'Venus', 'Tierra', 'Mercurio'] },
-            { category: 'CERCANOS', points: 400, question: '¿Cuál es el único planeta con océanos de agua líquida y vida conocida?', answer: 'Tierra', options: ['Tierra', 'Marte', 'Venus', 'Mercurio'] },
+            { category: 'CERCANOS', points: 200, question: '¿Cuál es el planeta con casquetes polares de hielo y evidencia de antiguos ríos y lagos?', answer: 'Marte', options: ['Venus', 'Mercurio', 'Tierra', 'Marte'] },
+            { category: 'CERCANOS', points: 300, question: '¿Qué planeta tiene una atmósfera tóxica de Dióxido de Carbono y nubes de ácido sulfúrico??', answer: 'Venus', options: ['Marte', 'Venus', 'Tierra', 'Mercurio'] },
+            { category: 'CERCANOS', points: 400, question: '¿Cuál es el único planeta con vida conocida?', answer: 'Tierra', options: ['Tierra', 'Marte', 'Venus', 'Mercurio'] },
             { category: 'CERCANOS', points: 500, question: '¿Cuál es conocido como “el planeta rojo”?', answer: 'Marte', options: ['Mercurio', 'Tierra', 'Marte', 'Venus'] },
 
             // COLUMNA 2: GIGANTES DEL SISTEMA SOLAR
             { category: 'GIGANTES', points: 100, question: '¿Cuál es el planeta más grande de nuestro sistema solar?', answer: 'Júpiter', options: ['Saturno', 'Júpiter', 'Urano', 'Neptuno'] },
-            { category: 'GIGANTES', points: 200, question: '¿Qué planeta tiene una Gran Mancha Roja?', answer: 'Júpiter', options: ['Júpiter', 'Saturno', 'Urano', 'Neptuno'] },
-            { category: 'GIGANTES', points: 300, question: '¿Cuál es famoso por su sistema de anillos de partículas de hielo?', answer: 'Saturno', options: ['Urano', 'Saturno', 'Neptuno', 'Júpiter'] },
-            { category: 'GIGANTES', points: 400, question: '¿Cuál de los siguientes rota de lado y tiene un color azul-verdoso por el metano?', answer: 'Urano', options: ['Saturno', 'Urano', 'Júpiter', 'Neptuno'] },
-            { category: 'GIGANTES', points: 500, question: '¿Cuál es el planeta más ventoso del sistema solar?', answer: 'Neptuno', options: ['Saturno', 'Urano', 'Neptuno', 'Júpiter'] },
+            { category: 'GIGANTES', points: 200, question: '¿Cuál es el nombre del planeta que rota de lado por su inclinación axial de 98 grados, y tiene un color azul-verdoso por el metano?', answer: 'Urano', options: ['Júpiter', 'Saturno', 'Urano', 'Neptuno'] },
+            { category: 'GIGANTES', points: 300, question: '¿Cuál es el planeta famoso por su sistema de anillos de partículas de hielo, polvo y roca?', answer: 'Saturno', options: ['Urano', 'Saturno', 'Neptuno', 'Júpiter'] },
+            { category: 'GIGANTES', points: 400, question: '¿Cuál es el planeta conocido con océanos de agua líquida?', answer: 'Tierra', options: ['Saturno', 'Tierra', 'Júpiter', 'Neptuno'] },
+            { category: 'GIGANTES', points: 500, question: '¿Cuál es el periodo orbital del planeta Tierra?', answer: '365 días', options: ['365 días', '356 días', '120 días', '88 días'] },
 
             // COLUMNA 3: CARACTERÍSTICAS EXTREMAS
-            { category: 'EXTREMAS', points: 100, question: '¿Cuál es el planeta más caliente?', answer: 'Venus', options: ['Mercurio', 'Venus', 'Tierra', 'Júpiter'] },
+            { category: 'EXTREMAS', points: 100, question: '¿Cuál es el planeta más caliente del sistema solar cuya temperatura oscila en los 464 grados centígrados?', answer: 'Venus', options: ['Mercurio', 'Venus', 'Tierra', 'Júpiter'] },
             { category: 'EXTREMAS', points: 200, question: '¿Qué planeta es famoso por tener anillos visibles?', answer: 'Saturno', options: ['Urano', 'Neptuno', 'Saturno', 'Júpiter'] },
-            { category: 'EXTREMAS', points: 300, question: '¿Cuál tiene un color azul-verdoso por el metano?', answer: 'Urano', options: ['Urano', 'Saturno', 'Neptuno', 'Marte'] },
-            { category: 'EXTREMAS', points: 400, question: '¿Cuál de estos planetas presenta las tormentas más fuertes?', answer: 'Neptuno', options: ['Saturno', 'Urano', 'Neptuno', 'Júpiter'] },
-            { category: 'EXTREMAS', points: 500, question: '¿Cuál combina ser el más grande del sistema solar y tener una Gran Mancha Roja?', answer: 'Júpiter', options: ['Saturno', 'Neptuno', 'Urano', 'Júpiter'] }
+            { category: 'EXTREMAS', points: 300, question: '¿Cuál de estos planetas presenta las tormentas más fuertes?', answer: 'Neptuno', options: ['Urano', 'Saturno', 'Neptuno', 'Marte'] },
+            { category: 'EXTREMAS', points: 400, question: '¿Cuál es el planeta que tiene un periodo orbital de 88 días?', answer: 'Mercurio', options: ['Saturno', 'Mercurio', 'Neptuno', 'Júpiter'] },
+            { category: 'EXTREMAS', points: 500, question: '¿Cuál es el planeta que tiene una distancia del Sol de 4.495 billones km?', answer: 'Neptuno', options: ['Saturno', 'Neptuno', 'Urano', 'Júpiter'] }
         ];
 
         // =================================================================
-        // DECLARACIÓN DE FUNCIONES GLOBALES (Soluciona ReferenceError)
+        // DECLARACIÓN DE FUNCIONES GLOBALES 
         // =================================================================
         
-        // --- FUNCIONES DE AUDIO ELIMINADAS/DUMMY ---
         function updateAudioVolumes() { /* Audio eliminado */ }
         function setupBackgroundAudio() { /* Audio eliminado */ }
         function toggleMusic(shouldPlay) { /* Audio eliminado */ }
@@ -462,7 +461,6 @@
         function createSynth() { return { synth: null, panner: null }; }
         function changeSong() { showMessage(`¡Sistema Solar Ampliado!`, 2000, new THREE.Color(0xfacc15)); }
         
-        // Funciones del Motor 3D
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -476,7 +474,7 @@
                 const distanceSq = direction.lengthSq();
                 if (distanceSq < 1) { return; }
                 const distance = Math.sqrt(distanceSq);
-                const magnitude = (GRAVITATIONAL_CONSTANT * sun.mass) / distanceSq; // Usar masa real del sol
+                const magnitude = (GRAVITATIONAL_CONSTANT * sun.mass) / distanceSq; 
                 const finalMagnitude = Math.min(magnitude, 5.0);
                 direction.normalize().multiplyScalar(finalMagnitude);
                 netAcceleration.add(direction);
@@ -503,21 +501,15 @@
             return nearestSun;
         }
         
-        /**
-         * NUEVO: Actualiza el panel de información del planeta.
-         * @param {object} planetData Datos del planeta
-         */
         function updateInfoPanel(planetData) {
             document.getElementById('infoPanel').classList.add('active');
             
             document.getElementById('infoName').textContent = planetData.name || 'Ningún Planeta Activo';
             document.getElementById('infoFact').textContent = planetData.fact || 'Arrastra un planeta del catálogo para empezar.';
             
-            // Renderizar la esfera de color (con color de fallback si no está definido)
             const colorHex = planetData.color ? '#' + new THREE.Color(planetData.color).getHexString() : '#333333';
             document.getElementById('infoSphere').style.backgroundColor = colorHex;
             
-            // Rellenar datos clave (usando encadenamiento opcional para evitar TypeError)
             document.getElementById('infoDistance').textContent = planetData.distance || 'N/A';
             document.getElementById('infoPeriod').textContent = planetData.period || 'N/A';
             document.getElementById('infoComposition').textContent = planetData.composition || 'N/A';
@@ -529,17 +521,16 @@
             const sunRadius = sunData ? sunData.radius : 25.0; 
             const sunMass = sunData ? sunData.massFactor * SUN_MASS : 1000.0;
             
-            // Lógica para eliminar Sol placeholder y solo mantener el arrastrado.
             if (suns.length > 0 && suns[0].name === 'Sol' && suns[0].mesh.position.distanceTo(new THREE.Vector3(5, 0, 0)) < 1) {
                 scene.remove(suns[0].mesh);
                 scene.remove(suns[0].light);
-                suns.shift(); // Elimina el sol de placeholder
+                suns.shift(); 
             }
             
             const sunGeometry = new THREE.SphereGeometry(sunRadius, 32, 32); 
             const sunMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xff9900, // Color del cuerpo (naranja/amarillo)
-                emissive: 0xff9900 // MUCHA EMISIVIDAD (Fuego interno)
+                color: 0xff9900, 
+                emissive: 0xff9900 
             }); 
             const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
             sunMesh.position.copy(position);
@@ -551,18 +542,18 @@
                 color: 0xff8800, 
                 blending: THREE.AdditiveBlending, 
                 transparent: true, 
-                opacity: 0.8 // Un poco más de opacidad para el brillo
+                opacity: 0.8 
             }));
-            lightSprite.scale.set(80, 80, 1.0); // TAMAÑO DEL FLARE AUMENTADO A 80
+            lightSprite.scale.set(80, 80, 1.0); 
             sunMesh.add(lightSprite);
 
-            const sunLight = new THREE.PointLight(0xffffff, 5.0, 0, 0); // LUZ AUMENTADA A 5.0
+            const sunLight = new THREE.PointLight(0xffffff, 5.0, 0, 0); 
             sunLight.position.copy(position);
             scene.add(sunLight);
 
             suns.push({ mesh: sunMesh, light: sunLight, mass: sunMass, name: 'Sol', fact: sunData.fact, distance: sunData.distance, period: sunData.period, composition: sunData.composition, massFactor: sunData.massFactor });
             
-            updateInfoPanel(sunData); // Mostrar info del Sol al crearlo
+            updateInfoPanel(sunData); 
             
             if (suns.length > 1 && musicStarted) {
                 changeSong();
@@ -601,7 +592,6 @@
         }
         
         function createInitialSun() {
-            // Este sol es un placeholder para que la física no falle antes de arrastrar el Sol real.
             const center = new THREE.Vector3(5, 0, 0); 
             createSunAtPosition(center);
         }
@@ -611,6 +601,7 @@
             element.addEventListener('pointermove', onPointerMove, false);
             element.addEventListener('pointerup', onPointerUp, false);
             element.addEventListener('pointerleave', onPointerUp, false);
+            element.style.touchAction = 'none'; 
         }
 
         function onPointerDown(event) {
@@ -631,6 +622,8 @@
         function onPointerMove(event) {
             
             if (!isPointerActive) return; 
+
+            if (event.pointerType === 'touch' && touchTarget) return; 
 
             if (!isDragging) {
                 const deltaMovementX = event.clientX - pointerStart.x;
@@ -658,14 +651,12 @@
         }
 
         function onPointerUp(event) {
-            if (isPointerActive && !isDragging) { 
+            if (event.pointerType !== 'touch' && isPointerActive && !isDragging) { 
                 const entitySelect = document.getElementById('entitySelect');
                 const selectedEntity = entitySelect ? entitySelect.value : 'planet';
                 
-                if (selectedEntity === 'planet') {
-                    createPlanet(event);
-                } else if (selectedEntity === 'sun') {
-                    createSunOnClick(event);
+                if (dragTarget && (dragTarget.isSun || selectedEntity === 'sun')) {
+                     createSunOnClick(event); 
                 }
             }
             
@@ -685,15 +676,12 @@
         }
         
         function createPlanetFromCatalog(event, planetData) {
-            // startAudioContext(); // ELIMINADO
             if (suns.length === 0) {
                 showMessage('No hay soles para orbitar. ¡Crea un Sol primero!', 3000, new THREE.Color(0xef4444));
                 return;
             }
             
-            // LÓGICA ESPECIAL PARA SOL ARRASTRADO DEL CATÁLOGO
             if (planetData.isSun) {
-                // Si el item arrastrado es el Sol, lo crea como un centro de gravedad
                 createSunOnClick(event);
                 return;
             }
@@ -720,7 +708,6 @@
                  initialVelocity.set(1, 0, 0); 
             }
             
-            // VELOCIDAD REDUCIDA AL 32%-38% PARA ÓRBITAS CERCANAS Y ESTABLES
             initialVelocity.normalize().multiplyScalar(orbitVelocityMag * THREE.MathUtils.randFloat(0.32, 0.38));
 
             initialVelocity.y = THREE.MathUtils.randFloatSpread(orbitVelocityMag * 0.1); 
@@ -753,13 +740,25 @@
                 velocity: initialVelocity, acceleration: new THREE.Vector3(0, 0, 0),
                 name: planetData.name, fact: planetData.fact, id: planets.length + 1, 
                 distance: planetData.distance, period: planetData.period, composition: planetData.composition,
-                massFactor: planetData.massFactor // Asegurar que la masa original esté disponible
+                massFactor: planetData.massFactor 
             };
             scene.add(planetMesh);
             planets.push(planetObject);
             updateAudioVolumes();
             showMessage(`¡Planeta ${planetData.name} Creado!`, 1500, brightColor);
-            updateInfoPanel(planetObject); // Mostrar información del planeta creado
+            updateInfoPanel(planetObject); 
+
+            // Iniciar la música si es el primer planeta que se añade
+            if (!musicStarted) {
+                const backgroundMusic = document.getElementById('backgroundMusic');
+                if (backgroundMusic) {
+                    backgroundMusic.play().catch(error => {
+                        console.warn("La reproducción de audio fue bloqueada por el navegador. Se requiere interacción del usuario.", error);
+                        showMessage("La música no pudo iniciarse automáticamente.", 2500, new THREE.Color(0xfacc15));
+                    });
+                    musicStarted = true;
+                }
+            }
         }
 
         function createPlanet(event) {
@@ -779,7 +778,6 @@
                 showMessage('Sol colocado en el límite de la zona central.', 2000, new THREE.Color(0xfacc15));
             }
             
-            // Lógica para eliminar Sol placeholder y solo mantener el arrastrado.
             if (suns.length === 1 && suns[0].name === 'Sol' && suns[0].mesh.position.distanceTo(new THREE.Vector3(5, 0, 0)) < 1) {
                 scene.remove(suns[0].mesh);
                 scene.remove(suns[0].light);
@@ -788,20 +786,23 @@
             
             const sunData = SOLAR_SYSTEM_PLANETS.find(p => p.name === 'Sol');
             createSunAtPosition(intersection);
-            updateInfoPanel(suns[suns.length - 1]); // Mostrar info del Sol creado
+            updateInfoPanel(suns[suns.length - 1]); 
             showMessage('¡Nuevo Sol Creado! Ahora afecta la gravedad.', 2000, new THREE.Color(0xfacc15));
         }
         
         function clearSimulation() {
             const initialSuns = suns.length;
+            const audio = document.getElementById('backgroundMusic');
+            if(audio) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
             musicStarted = false;
-            // ELIMINADA LÓGICA DE DETENER AUDIO
             planets.forEach(planet => { scene.remove(planet.mesh); scene.remove(planet.trail); });
             planets.length = 0;
             suns.forEach(sun => { scene.remove(sun.mesh); scene.remove(sun.light); });
             suns.length = 0;
             createInitialSun(); 
-            // NUEVO: Asegurar que el panel se reinicia a un estado seguro
             updateInfoPanel(SOLAR_SYSTEM_PLANETS.find(p => p.name === 'Sol'));
             showMessage('Simulación Reiniciada. ¡Crea nuevos sistemas!', 2500, new THREE.Color(0xef4444));
         }
@@ -826,7 +827,6 @@
 
         function startJeopardy() {
             if (!isPaused) {
-                // Aquí usamos el botón invisible para simular la pausa, ya que el botón Pausar/Reanudar está oculto
                 togglePause();
             }
 
@@ -838,7 +838,7 @@
 
 
             currentScore = 0;
-            questionsAnswered = 0; // REINICIAR EL CONTADOR DE INTENTOS
+            questionsAnswered = 0; 
             document.getElementById('currentScore').textContent = 0;
             
             generateDynamicQuestions(); 
@@ -847,7 +847,7 @@
         
         function resumeSimulation() {
             document.getElementById('jeopardyOverlay').classList.add('hidden');
-            document.getElementById('finalScoreOverlay').classList.add('hidden'); // OCULTAR PANTALLA FINAL
+            document.getElementById('finalScoreOverlay').classList.add('hidden'); 
             
             document.getElementById('controls').style.opacity = '1';
             document.getElementById('controls').style.pointerEvents = 'auto';
@@ -855,7 +855,6 @@
             document.getElementById('planetCatalog').style.pointerEvents = 'auto';
 
 
-            // Reanudar la simulación si estaba pausada por la trivia
             if (document.getElementById('pauseButton').textContent === 'Reanudar Simulación') {
                 togglePause();
             }
@@ -868,46 +867,19 @@
             SOLAR_SYSTEM_PLANETS.forEach((planetData, index) => {
                 const item = document.createElement('div');
                 item.className = 'catalog-item flex items-center p-2 bg-gray-800 rounded-lg shadow-md hover:bg-gray-700 transition duration-150';
-                item.draggable = true;
+                item.draggable = false; 
                 item.dataset.planetIndex = index;
                 item.dataset.name = planetData.name;
 
-                // Si es el Sol, lo hacemos más grande en el catálogo
                 const radiusSize = planetData.isSun ? 24 : 16;
                 const colorHex = '#' + new THREE.Color(planetData.color).getHexString();
                 const sphere = `<div style="background-color: ${colorHex}; width: ${radiusSize}px; height: ${radiusSize}px; border-radius: 50%; border: 1px solid white;"></div>`;
-                const info = `<div class="ml-3 text-lg font-semibold">${planetData.name}</div>`; // AJUSTE DE TAMAÑO
+                const info = `<div class="ml-3 text-lg font-semibold">${planetData.name}</div>`; 
 
                 item.innerHTML = sphere + info;
                 
-                // --- Eventos de Arrastre ---
-                item.addEventListener('dragstart', (e) => {
-                    dragTarget = planetData;
-                    e.dataTransfer.setData('text/plain', planetData.name);
-                    item.classList.add('dragging');
-                    
-                    // Crear un mesh temporal más grande para arrastrar
-                    dragObject = new THREE.Mesh(
-                        new THREE.SphereGeometry(planetData.radius * 2.5, 16, 16), 
-                        new THREE.MeshBasicMaterial({ color: planetData.color, transparent: true, opacity: 0.5 })
-                    );
-                    scene.add(dragObject);
-                    dragObject.visible = true; 
-
-                });
-
-                item.addEventListener('dragend', (e) => {
-                    item.classList.remove('dragging');
-                    dragTarget = null;
-                    if (dragObject) {
-                        scene.remove(dragObject);
-                        dragObject = null;
-                    }
-                });
-
                 catalogList.appendChild(item);
                 
-                // INICIALIZACIÓN DEL PANEL DE INFO
                 if (index === 0) {
                     updateInfoPanel(planetData);
                 }
@@ -916,61 +888,13 @@
             document.getElementById('planetCatalog').style.opacity = '1';
             document.getElementById('planetCatalog').style.pointerEvents = 'auto';
 
-            // Solo añadir listeners una vez
-            const canvasElement = renderer.domElement;
-            if (!canvasElement.dataset.listenersAdded) {
-                canvasElement.addEventListener('dragover', (e) => {
-                    e.preventDefault(); 
-                    if (dragObject) {
-                        updateDragObjectPosition(e);
-                    }
-                });
-
-                canvasElement.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    if (dragTarget) {
-                        createPlanetFromCatalog(e, dragTarget);
-                    }
-                });
-                canvasElement.dataset.listenersAdded = 'true';
-            }
         }
         
         function generateDynamicQuestions() {
-            // Genera preguntas dinámicas basadas en los datos de SOLAR_SYSTEM_PLANETS
-            const categories = {};
+            const allQuestionsData = JEOPARDY_QUESTIONS;
             
-            // Preguntas fijas basadas en los datos del catálogo
-            const allQuestionsData = [
-                // COLUMNA 1: PLANETAS CERCANOS AL SOL
-                { category: 'CERCANOS', points: 100, question: '¿Cuál es el planeta más cercano al Sol?', answer: 'Mercurio', options: ['Venus', 'Marte', 'Mercurio', 'Tierra'] },
-                { category: 'CERCANOS', points: 200, question: '¿Cuál es el planeta más pequeño del sistema solar?', answer: 'Mercurio', options: ['Venus', 'Mercurio', 'Tierra', 'Marte'] },
-                { category: 'CERCANOS', points: 300, question: '¿Qué planeta tiene una atmósfera tóxica de dióxido de carbono?', answer: 'Venus', options: ['Marte', 'Venus', 'Tierra', 'Mercurio'] },
-                { category: 'CERCANOS', points: 400, question: '¿Cuál es el único planeta con océanos de agua líquida y vida conocida?', answer: 'Tierra', options: ['Tierra', 'Marte', 'Venus', 'Mercurio'] },
-                { category: 'CERCANOS', points: 500, question: '¿Cuál es conocido como “el planeta rojo”?', answer: 'Marte', options: ['Mercurio', 'Tierra', 'Marte', 'Venus'] },
-
-                // COLUMNA 2: GIGANTES DEL SISTEMA SOLAR
-                { category: 'GIGANTES', points: 100, question: '¿Cuál es el planeta más grande de nuestro sistema solar?', answer: 'Júpiter', options: ['Saturno', 'Júpiter', 'Urano', 'Neptuno'] },
-                { category: 'GIGANTES', points: 200, question: '¿Qué planeta tiene una Gran Mancha Roja?', answer: 'Júpiter', options: ['Júpiter', 'Saturno', 'Urano', 'Neptuno'] },
-                { category: 'GIGANTES', points: 300, question: '¿Cuál es famoso por su sistema de anillos de partículas de hielo?', answer: 'Saturno', options: ['Urano', 'Saturno', 'Neptuno', 'Júpiter'] },
-                { category: 'GIGANTES', points: 400, question: '¿Cuál de los siguientes rota de lado y tiene un color azul-verdoso por el metano?', answer: 'Urano', options: ['Saturno', 'Urano', 'Júpiter', 'Neptuno'] },
-                { category: 'GIGANTES', points: 500, question: '¿Cuál es el planeta más ventoso del sistema solar?', answer: 'Neptuno', options: ['Saturno', 'Urano', 'Neptuno', 'Júpiter'] },
-
-                // COLUMNA 3: CARACTERÍSTICAS EXTREMAS
-                { category: 'EXTREMAS', points: 100, question: '¿Cuál es el planeta más caliente?', answer: 'Venus', options: ['Mercurio', 'Venus', 'Tierra', 'Júpiter'] },
-                { category: 'EXTREMAS', points: 200, question: '¿Qué planeta es famoso por tener anillos visibles?', answer: 'Saturno', options: ['Urano', 'Neptuno', 'Saturno', 'Júpiter'] },
-                { category: 'EXTREMAS', points: 300, question: '¿Cuál tiene un color azul-verdoso por el metano?', answer: 'Urano', options: ['Urano', 'Saturno', 'Neptuno', 'Marte'] },
-                { category: 'EXTREMAS', points: 400, question: '¿Cuál de estos planetas presenta las tormentas más fuertes?', answer: 'Neptuno', options: ['Saturno', 'Urano', 'Neptuno', 'Júpiter'] },
-                { category: 'EXTREMAS', points: 500, question: '¿Cuál combina ser el más grande del sistema solar y tener una Gran Mancha Roja?', answer: 'Júpiter', options: ['Saturno', 'Neptuno', 'Urano', 'Júpiter'] }
-            ];
-            
-            // Mapear las preguntas fijas a la estructura de la tabla de Jeopardy
             JEOPARDY_POINTS.forEach(points => {
                 Object.keys(JEOPARDY_CATEGORIES).forEach(categoryKey => {
-                    const categoryFullName = JEOPARDY_CATEGORIES[categoryKey];
-                    const categoryBaseName = categoryFullName.split(' ')[0]; // Ej: 'PLANETAS', 'GIGANTES', 'CARACTERÍSTICAS'
-                    
-                    // Filtrar por la categoría base y los puntos
                     const question = allQuestionsData.find(q => q.category === categoryKey && q.points === points);
 
                     if (question) {
@@ -992,11 +916,10 @@
             document.getElementById('questionDisplay').classList.remove('flex');
             boardContainer.classList.remove('hidden');
 
-            // Quitar celdas viejas, dejando solo los títulos
             let isCategoryTitle = true;
-            boardContainer.innerHTML = ''; // Limpiar todo, re-renderizar títulos
+            boardContainer.innerHTML = ''; 
 
-            // 1. Re-renderizar Títulos de Categoría
+            // 1. Re-renderizar Títulos de Categoría (Usa los nombres CORREGIDOS del JS)
             Object.values(JEOPARDY_CATEGORIES).forEach(title => {
                 const titleDiv = document.createElement('div');
                 titleDiv.className = 'p-3 bg-trivia-teal font-extrabold text-xl text-center rounded-t-lg text-white';
@@ -1005,7 +928,7 @@
             });
 
 
-            // 2. Renderizar Celdas de Puntos
+            // 2. Renderizar Celdas de Puntos 
             JEOPARDY_POINTS.forEach(points => {
                 categories.forEach(categoryKey => {
                     const questionData = availableQuestions[points] ? availableQuestions[points][categoryKey] : null;
@@ -1024,9 +947,9 @@
                          cell.addEventListener('click', () => showQuestion(categoryKey, points));
                          cell.classList.add('hover:bg-teal-600'); 
                     } else {
-                         cell.classList.add('bg-gray-700', 'answered');
-                         cell.textContent = '';
-                         cell.disabled = true;
+                          cell.classList.add('bg-gray-700', 'answered');
+                          cell.textContent = '';
+                          cell.disabled = true;
                     }
 
                     boardContainer.appendChild(cell);
@@ -1065,9 +988,9 @@
             const optionsContainer = document.getElementById('optionsContainer');
             optionsContainer.innerHTML = activeQuestion.options.map((option, index) => `
                 <button data-answer="${option}" 
-                        data-category="${categoryKey}" 
-                        data-points="${points}"
-                        class="trivia-option-button w-full text-left p-3 bg-gray-300 hover:bg-yellow-400 text-gray-900 rounded-md transition duration-150 text-base">
+                         data-category="${categoryKey}" 
+                         data-points="${points}"
+                         class="trivia-option-button w-full text-left p-3 bg-gray-300 hover:bg-yellow-400 text-gray-900 rounded-md transition duration-150 text-base">
                     ${String.fromCharCode(65 + index)}. ${option}
                 </button>
             `).join('');
@@ -1079,7 +1002,7 @@
 
 
         function handleAnswer(event) {
-            questionsAnswered++; // Se incrementa el contador al responder
+            questionsAnswered++; 
             
             const button = event.target;
             const userAnswer = button.dataset.answer;
@@ -1113,7 +1036,7 @@
                 feedback.classList.add('text-green-600');
             } else {
                 currentScore -= points;
-                feedback.textContent = `INCORRECTO. Perdiste $${points} puntos. La respuesta era: ${correct}`;
+                feedback.textContent = `INCORRECTO. La respuesta correcta era: ${correct}.`;
                 feedback.classList.add('text-red-600');
             }
 
@@ -1121,24 +1044,19 @@
             answeredQuestions[`${categoryKey}_${points}`] = true; 
             document.getElementById('currentScore').textContent = currentScore;
             
-            // Comprobar si se alcanzó el límite de preguntas
             if (questionsAnswered >= MAX_QUESTIONS) {
-                endJeopardyGame();
+                setTimeout(endJeopardyGame, 2000); // Wait 2 seconds before showing final score
             } else {
                  document.getElementById('backToBoardButton').classList.remove('hidden');
             }
         }
         
         function endJeopardyGame() {
-            // Oculta la vista actual (Jeopardy o Question Display)
             document.getElementById('jeopardyOverlay').classList.add('hidden');
             document.getElementById('questionDisplay').classList.add('hidden');
             
-            // Muestra la puntuación final
             document.getElementById('finalScoreValue').textContent = currentScore;
             document.getElementById('finalScoreOverlay').classList.remove('hidden');
-            
-            // Reanudar la simulación (lo hará resumeSimulation)
         }
 
 
@@ -1159,7 +1077,9 @@
                 if (container) {
                      container.appendChild(renderer.domElement);
                 } else {
-                     throw new Error("El contenedor #container no se encontró.");
+                     console.error("El contenedor #container no se encontró. No se puede iniciar Three.js.");
+                     showMessage("Error crítico: No se encontró el contenedor 3D.", 5000, new THREE.Color(0xff0000));
+                     return; 
                 }
                 
                 ambientLight = new THREE.AmbientLight(0x404040, 0.5); 
@@ -1171,17 +1091,13 @@
                 window.addEventListener('resize', onWindowResize, false);
                 setupPointerControls(renderer.domElement);
 
-                // ENLACE DE BOTONES - SEGURO
                 document.getElementById('clearButton').addEventListener('click', clearSimulation);
                 document.getElementById('triviaButton').addEventListener('click', startJeopardy);
                 document.getElementById('resumeButton').addEventListener('click', resumeSimulation);
                 document.getElementById('backToBoardButton').addEventListener('click', renderJeopardyBoard);
-                document.getElementById('returnToSimButton').addEventListener('click', resumeSimulation); // NUEVO BOTÓN
+                document.getElementById('returnToSimButton').addEventListener('click', resumeSimulation); 
                 
-                // Poblar el Catálogo con los planetas y activar el drag-and-drop
                 populateCatalog();
-                
-                // Generar preguntas una vez
                 generateDynamicQuestions();
                 
             } catch (e) {
@@ -1213,7 +1129,6 @@
                         continue;
                     }
 
-                    // Lógica de rastros... (omitiendo detalle por brevedad)
                     const orbitPositions = planet.orbitPositions;
                     const positionsAttribute = planet.trail.geometry.attributes.position;
                     const colorsAttribute = planet.trail.geometry.attributes.color;
@@ -1282,8 +1197,7 @@
                 }
             }
             
-            // 2. Mover la Cámara (Controles Manuales e Inercia)
-            const ORBIT_RADIUS = 400; // Usar el valor global
+            const ORBIT_RADIUS = 400; 
             const DAMPING_FACTOR = 0.9; 
 
             if (!isDragging) {
@@ -1302,7 +1216,6 @@
             camera.position.set(x, y, z);
             camera.lookAt(0, 0, 0); 
 
-            // 3. Renderizar la Escena
             if (renderer && scene && camera) {
                 renderer.render(scene, camera);
             }
@@ -1313,36 +1226,146 @@
         // ENLACE FINAL DEL BOTÓN (DOM Ready)
         // =================================================================
 
+        // Variables para el soporte táctil (tocar para colocar)
+        let touchTarget = null; 
+        let longPressTimeout = null; 
+
         document.addEventListener('DOMContentLoaded', () => {
             
-            document.getElementById('startButton').addEventListener('click', () => {
+            // 1. INICIALIZADOR PRINCIPAL - INICIO AUTOMÁTICO
+            const overlay = document.getElementById('overlay');
+            
+            // Inicia la opacidad a 1 y luego comienza la transición de inicio automático
+            overlay.style.opacity = '1';
+
+            // TIEMPO DE ESPERA ANTES DE INICIAR LA SIMULACIÓN AUTOMÁTICAMENTE (3 segundos)
+            setTimeout(() => {
                 try {
-                    const overlay = document.getElementById('overlay');
-                    overlay.style.opacity = '0';
+                    // 1. INICIALIZACIÓN CRÍTICA (Se eliminó la reproducción automática de audio)
+                    init();
+                    animate();
                     
+                    // 2. OCULTAR OVERLAY
+                    overlay.style.opacity = '0';
                     setTimeout(() => {
-                        overlay.style.pointerEvents = 'none';
-                        
-                        init();
-                        animate();
-
-                        // HACE VISIBLE EL CONTROLS Y CATÁLOGO
-                        document.getElementById('controls').style.opacity = '1';
-                        document.getElementById('controls').style.pointerEvents = 'auto'; 
-                        document.getElementById('planetCatalog').style.opacity = '1';
-                        document.getElementById('planetCatalog').style.pointerEvents = 'auto'; 
-
-                        showMessage('¡Simulación Iniciada! Arrastra un planeta para crear su órbita.', 3500, new THREE.Color(0x22c55e));
-
+                        overlay.style.display = 'none'; // Quita la capa para liberar el toque
                     }, 500);
 
+                    // 3. MUESTRA CONTROLES
+                    document.getElementById('controls').style.opacity = '1';
+                    document.getElementById('controls').style.pointerEvents = 'auto'; 
+                    document.getElementById('planetCatalog').style.opacity = '1';
+                    document.getElementById('planetCatalog').style.pointerEvents = 'auto'; 
+
+                    showMessage('¡Simulación Iniciada! Arrastra un planeta para crear su órbita.', 3500, new THREE.Color(0x22c55e));
+                    
                 } catch (error) {
-                    console.error("Fallo crítico al iniciar la simulación:", error);
-                    showMessage(`Error al iniciar: ${error.message}. Revisa la consola.`, 5000, new THREE.Color(0xff0000));
+                    console.error("Fallo crítico durante el inicio automático:", error);
+                    showMessage(`Error de inicio: ${error.message}. La simulación no pudo cargarse.`, 6000, new THREE.Color(0xff0000));
+                }
+            }, 3000); // <-- 3 segundos de pausa en la pantalla de bienvenida
+
+
+            // 2. LÓGICA DE ARRASTRAR Y SOLTAR (DRAG & DROP) UNIFICADA
+            const catalogList = document.getElementById('catalogList');
+            const canvasContainer = document.getElementById('container');
+            let draggedPlanetData = null;
+            let ghostElement = null;
+
+            if (catalogList && canvasContainer) {
+                catalogList.addEventListener('pointerdown', (e) => {
+                    const item = e.target.closest('.catalog-item');
+                    if (!item) return;
+
+                    // Previene comportamientos por defecto como la selección de texto
+                    if (e.pointerType === 'mouse') {
+                       e.preventDefault();
+                    }
+                    
+                    const index = item.dataset.planetIndex;
+                    if (index === undefined) return;
+
+                    draggedPlanetData = SOLAR_SYSTEM_PLANETS[index];
+
+                    // Crea y estiliza el elemento fantasma que sigue al puntero
+                    ghostElement = item.cloneNode(true);
+                    ghostElement.style.position = 'absolute';
+                    ghostElement.style.pointerEvents = 'none';
+                    ghostElement.style.zIndex = '1000';
+                    document.body.appendChild(ghostElement);
+                    
+                    ghostElement.classList.add('dragging'); // Re-aplica la clase para el estilo
+                    item.classList.add('opacity-50'); // Atenúa el original
+                    
+                    // Posiciona el fantasma en el cursor
+                    ghostElement.style.left = `${e.clientX - ghostElement.offsetWidth / 2}px`;
+                    ghostElement.style.top = `${e.clientY - ghostElement.offsetHeight / 2}px`;
+                });
+
+                document.addEventListener('pointermove', (e) => {
+                    if (draggedPlanetData && ghostElement) {
+                        ghostElement.style.left = `${e.clientX - ghostElement.offsetWidth / 2}px`;
+                        ghostElement.style.top = `${e.clientY - ghostElement.offsetHeight / 2}px`;
+                    }
+                });
+
+                document.addEventListener('pointerup', (e) => {
+                    if (draggedPlanetData && ghostElement) {
+                        const canvasBounds = canvasContainer.getBoundingClientRect();
+                        if (
+                            e.clientX >= canvasBounds.left && e.clientX <= canvasBounds.right &&
+                            e.clientY >= canvasBounds.top && e.clientY <= canvasBounds.bottom
+                        ) {
+                            createPlanetFromCatalog(e, draggedPlanetData);
+                        }
+
+                        // Limpieza
+                        document.body.removeChild(ghostElement);
+                        ghostElement = null;
+                        draggedPlanetData = null;
+                        
+                        document.querySelectorAll('.catalog-item.opacity-50').forEach(el => el.classList.remove('opacity-50'));
+                    }
+                });
+            }
+            
+            // 3. LÓGICA DEL BOTÓN DE OCULTAR PANEL DE INFO (Para móvil)
+            const infoPanel = document.getElementById('infoPanel');
+            const toggleButton = document.createElement('button');
+            toggleButton.id = 'toggleInfoPanel';
+            toggleButton.textContent = 'Ocultar ↑';
+            toggleButton.className = 'absolute top-0 right-0 mt-1 mr-2 bg-white/20 text-white rounded-full px-3 py-1 text-xs font-semibold transition hover:bg-white/40 focus:outline-none sm:hidden';
+
+            if (infoPanel) {
+                 infoPanel.appendChild(toggleButton);
+            }
+            
+
+            toggleButton.addEventListener('click', () => {
+                const controls = document.getElementById('controls');
+                let isHidden = infoPanel.style.transform === 'translateY(80%)';
+
+                if (!isHidden) {
+                    // CÓDIGO PARA OCULTAR/PLEGAR PANEL
+                    infoPanel.style.transform = 'translateY(80%)';
+                    infoPanel.style.opacity = '0.7';
+                    toggleButton.textContent = 'Mostrar ↓';
+                    
+                    // MUEVE LOS BOTONES HACIA ABAJO (se pliegan a 180px)
+                    controls.style.bottom = '180px'; 
+                } else {
+                    // CÓDIGO PARA MOSTRAR/DESPLEGAR PANEL
+                    infoPanel.style.transform = 'translateY(0)';
+                    infoPanel.style.opacity = '1';
+                    toggleButton.textContent = 'Ocultar ↑';
+                    
+                    // MUEVE LOS BOTONES DE VUELTA A SU POSICIÓN ORIGINAL
+                    controls.style.bottom = '300px'; 
                 }
             });
-
+            
         });
     </script>
 </body>
 </html>
+
